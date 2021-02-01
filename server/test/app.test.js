@@ -1,0 +1,20 @@
+const request = require('supertest');
+const app = require('../app');
+
+describe('Express application', function () {
+  it('has a basic running configuration', function (done) {
+    request(app)
+      .get('/')
+      .expect(200)
+      .end(function (error, response) {
+        if (error) {
+          done(error);
+        } else {
+          // expect(Array.isArray(response.body)).toBeTruthy();
+          expect(response.text).toEqual(
+            expect.stringContaining('Hello World'));
+          done();
+        }
+      });
+  });
+});

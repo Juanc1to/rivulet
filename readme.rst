@@ -50,7 +50,7 @@ branch
 watershed
   The set of branches associated with a particular topic.
 
-Software components under consideration
+Software ecosystem under consideration
 ---------------------------------------
 
 `Feathers (FeathersJS) <https://docs.feathersjs.com/>`_
@@ -61,6 +61,12 @@ Software components under consideration
   easily use `Parseq <https://github.com/douglascrockford/parseq>`_ instead of
   async/await and Promises.
 
+  After looking around at a lot of web frameworks, including Feathers, I think
+  I may want to just use `Express <http://expressjs.com/`_.  I'm very
+  interested in `Cycle.js <http://cycle.js.org/>`_, but I think I want more
+  community focus on integrating Cycle.js with server functionality (e.g.
+  Express, or possibly just Node.js).
+
 `Vue.js <https://vuejs.org/>`_
   Web interface
 
@@ -70,6 +76,16 @@ Supporting libraries
   - Testing with `Jest <https://jestjs.io/>`_, although I note that the default
     with Feathers is Mocha + assert.  I don't have a lot of experience with
     JavaScript testing frameworks; what do others think?
+
+  - Runtime configuration with `Node-config
+    <https://lorenwest.github.io/node-config/>`_
+
+  - Database query building with `Knex <http://knexjs.org/>`_, and my plan is
+    to get things rolling with SQLite, and eventually add support for
+    PostgreSQL.  I may just use drivers that expose the SQL, though (after
+    reading `"Stop using Knex.js" <https://medium.com/@gajus/bf410349856c>`_),
+    such as `better-sqlite3 <https://github.com/JoshuaWise/better-sqlite3>`_
+    and `Slonik <https://github.com/gajus/slonik>`_, respectively.
 
 Design ideas
 ------------

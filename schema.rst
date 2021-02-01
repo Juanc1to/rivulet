@@ -18,6 +18,9 @@ Common columns
   * - description
     - the description of the thing
     - text
+  * - updated
+    - when the record was last updated
+    - date and time
 
 Users table
 -----------
@@ -81,7 +84,7 @@ Branches table
       here is a sort of redundant check of the consistency of information
       there.
     - boolean
-  * - level
+  * - confluences 
     - How many branch merges (and thus representation selections) does this
       branch represent?  This can (also) be inferred from the `participation`
       table.
@@ -149,11 +152,13 @@ Messages table
   * - quoted message id
     - the message that this message optionally quotes
     - reference to the message, in n:1 correspondence
-  * - proposal summary
-    - a description of why the author wants to propose this message to describe
-      the current conclusions of the branch.  If this is empty, then the
-      message is not considered to be a proposal of conclusions.  Would this
-      make more sense as a boolean flag?
+  * - proposal type
+    - if this message is also a proposal, this field will be set to the type of
+      the proposal.  Two options that I currently imagine are for summary
+      proposals and representative proposals.
+    - string, possibly curated list
+  * - proposal input
+    - the content of the proposal for consideration within the branch
     - text
 
 Reactions table
@@ -174,7 +179,7 @@ Users can give reactions to messages; these reactions are stored in this table.
   * - user id
     - the user making the reaction
     - reference to the user, in n:1 correspondence
-  * - type
+  * - intent 
     - the type of the reaction (e.g. "+1")
     - string, possibly curated list
   * - message id
