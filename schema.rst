@@ -84,9 +84,9 @@ Branches table
       here is a sort of redundant check of the consistency of information
       there.
     - boolean
-  * - confluences 
+  * - progression 
     - How many branch merges (and thus representation selections) does this
-      branch represent?  This can (also) be inferred from the `participation`
+      branch represent?  This may (also) be inferred from the `participation`
       table.
     - non-negative integer
 

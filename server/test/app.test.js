@@ -10,7 +10,6 @@ describe('Express application', function () {
         if (error) {
           done(error);
         } else {
-          // expect(Array.isArray(response.body)).toBeTruthy();
           expect(response.text).toEqual(
             expect.stringContaining('Hello World'));
           done();

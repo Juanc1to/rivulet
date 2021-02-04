@@ -21,7 +21,7 @@ const tables = fromJS({
       watershed_id integer,
       conclusions text,
       active boolean,
-      confluences integer,
+      progression integer,
       updated timestamp with time zone)`,
   participation: `
     create table participation (

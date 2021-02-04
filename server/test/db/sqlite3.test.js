@@ -3,6 +3,8 @@ const app = require('../../app');
 // Eventually this will be routed through a runtime configuration (in theory):
 const sqlite = app.get('db');
 
+const { drop_all_tables_factory } = require('./util');
+
 const field_statement = sqlite.prepare(
   'select * from pragma_table_info($table) where name = $column_name'
 );
@@ -16,14 +18,7 @@ function has_table_structure(table_name, table_columns) {
   });
 }
 
-afterAll(function () {
-  sqlite.prepare('drop table users').run();
-  sqlite.prepare('drop table watersheds').run();
-  sqlite.prepare('drop table branches').run();
-  sqlite.prepare('drop table participation').run();
-  sqlite.prepare('drop table messages').run();
-  sqlite.prepare('drop table reactions').run();
-});
+afterAll(drop_all_tables_factory(sqlite));
 
 describe('SQLite3 database schema', function () {
   it('has a users table', function () {
