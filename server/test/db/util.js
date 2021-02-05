@@ -5,6 +5,7 @@ function drop_all_tables_factory(sqlite) {
     table_names.forEach(function drop(table_name) {
       sqlite.prepare(`drop table ${table_name}`).run();
     });
+    sqlite.close();
   };
 }
 

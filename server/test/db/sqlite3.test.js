@@ -54,7 +54,7 @@ describe('SQLite3 database schema', function () {
         'watershed_id',
         'conclusions',
         'active',
-        'confluences',
+        'progression',
         'updated',
       ]
     );
@@ -79,7 +79,7 @@ describe('SQLite3 database schema', function () {
       [
         'id',
         'author_id',
-        'message',
+        'content',
         'submitted',
         'branch_id',
         'quoted_message_id',

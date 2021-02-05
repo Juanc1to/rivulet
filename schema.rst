@@ -84,7 +84,7 @@ Branches table
       here is a sort of redundant check of the consistency of information
       there.
     - boolean
-  * - progression 
+  * - progression
     - How many branch merges (and thus representation selections) does this
       branch represent?  This may (also) be inferred from the `participation`
       table.
@@ -139,7 +139,7 @@ Messages table
   * - author id
     - the user who wrote the message
     - reference to the user, in n:1 correspondence
-  * - message
+  * - content
     - the text of the message itself
     - text
   * - submitted
