@@ -53,7 +53,7 @@ describe('SQLite3 database schema', function () {
         'id',
         'watershed_id',
         'conclusions',
-        'active',
+        'head',
         'progression',
         'updated',
       ]
