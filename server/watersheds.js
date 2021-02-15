@@ -1,7 +1,8 @@
 const config = require('config');
 const { List, Map } = require('immutable');
 
-function watershed(db, branch_size) {
+function watershed(db, options = {}) {
+  let { branch_size, name, description } = options;
   if (branch_size === undefined) {
     if (config.has('branch_size')) {
       branch_size = config.get('branch_size');
@@ -10,13 +11,38 @@ function watershed(db, branch_size) {
     }
   }
 
-  const insert_query = db.prepare(
-    `insert into watersheds (branch_size, updated) values (
-       $branch_size,
-       strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-     )`);
-  const info = insert_query.run({ branch_size });
+  const insert_query = db.prepare(`
+    insert into watersheds (branch_size, name, description, updated) values (
+      $branch_size, $name, $description,
+      strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    )`);
+  const info = insert_query.run({ branch_size, name, description });
   return info.lastInsertRowid;
+}
+
+function browse_Q(db, options = {}) {
+  let { id, like_title, like_description } = options;
+
+  let where_clause = '';
+  if (id !== undefined) {
+    where_clause = 'where watersheds.id = $id';
+  }
+
+  return List(
+    db.prepare(`
+      select watersheds.id, watersheds.name, watersheds.description,
+             watersheds.updated, branch_size,
+             count(user_id) as nr_participants
+        from watersheds left join branches
+          on watersheds.id = watershed_id and head
+        left join participation on branches.id = branch_id
+        ${where_clause}
+        group by watersheds.id`).all({ id })
+  ).map(Map);
+}
+
+function browse(db, options = {}) {
+  return db.transaction(browse_Q)(db, options);
 }
 
 function joinQueries(db, user_id, watershed_id) {
@@ -25,7 +51,7 @@ function joinQueries(db, user_id, watershed_id) {
     select branch_id from participation
       inner join branches on participation.branch_id = branches.id
       where branch_id is not null
-            and branches.active
+            and branches.head
             and branches.watershed_id = $watershed_id
             and user_id = $user_id`).all(params);
 
@@ -51,7 +77,7 @@ function joinQueries(db, user_id, watershed_id) {
         -- We might want information like the following.  It's currently
         -- commented out, but note that it uses the \`max\` aggregate
         -- function as logical AND (which may be an SQLite-specific trick).
-        --max(coalesce(target_branch.active, source_branch.active)) as active
+        --max(coalesce(target_branch.head, source_branch.head)) as head
       from users left join participation
         on users.id = participation.user_id
       left join branches as source_branch
@@ -71,13 +97,13 @@ function joinQueries(db, user_id, watershed_id) {
   // column...)
 
   /* Now, given a progression level, we want to be able to find the id of an
-   * active branch in that watershed and at that progression level that is not
+   * head branch in that watershed and at that progression level that is not
    * full.
    */
   const open_branches_rows = db.prepare(`
     select branches.id from branches
       inner join watersheds on watershed_id = watersheds.id
-      where watershed_id = $watershed_id and active
+      where watershed_id = $watershed_id and head
             and progression = $progression
             and (
               select count(user_id) from participation
@@ -88,7 +114,7 @@ function joinQueries(db, user_id, watershed_id) {
   if (open_branches_rows.length === 0) {
     // Create a new branch with the appropriate progression.
     const new_branch_info = db.prepare(`
-      insert into branches (watershed_id, active, progression, updated)
+      insert into branches (watershed_id, head, progression, updated)
         values ($watershed_id, true, $progression,
                 strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).run(
       { watershed_id, progression });
@@ -112,7 +138,7 @@ function join(db, user_id, watershed_id) {
 function watershed_count_Q(db, watershed_id) {
   return db.prepare(`
     select count(*) from participation inner join branches on branch_id = id
-      where active and watershed_id = $watershed_id`)
+      where head and watershed_id = $watershed_id`)
     .pluck().get({ watershed_id });
 }
 
@@ -149,23 +175,21 @@ function summary(db, user_id, watershed_id) {
 }
 
 function message_Q(db, details) {
-  if (!(details.has('author_id') && details.has('content')
-        && details.has('watershed_id'))) {
+  const { author_id, content, watershed_id, quoted_message_id,
+          proposal_type, proposal_input } = details;
+  if (author_id === undefined || content === undefined
+      || watershed_id === undefined) {
     throw Error('Missing key message details');
   }
-  const author_id = details.get('author_id')
-  const branch_id = join(db, author_id, details.get('watershed_id'));
+  const branch_id = join(db, author_id, watershed_id);
   const new_message_info = db.prepare(`
     insert into messages (author_id, content, submitted, branch_id,
                           quoted_message_id, proposal_type, proposal_input)
       values ($author_id, $content, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
               $branch_id, $quoted_message_id, $proposal_type,
               $proposal_input)`).run({
-    author_id, branch_id,
-    content: details.get('content'),
-    quoted_message_id: details.get('quoted_message_id'),
-    proposal_type: details.get('proposal_type'),
-    proposal_input: details.get('proposal_input'),
+    author_id, branch_id, content, quoted_message_id,
+    proposal_type, proposal_input
   });
   return new_message_info.lastInsertRowid;
 }
@@ -174,4 +198,4 @@ function message(db, details) {
   return db.transaction(message_Q)(db, details);
 }
 
-module.exports = Object.freeze({ watershed, join, summary, message });
+module.exports = Object.freeze({ watershed, browse, join, summary, message });

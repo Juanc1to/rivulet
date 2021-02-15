@@ -1,6 +1,6 @@
 {
   "name": "rivulet",
-  "version": "0.0.1",
+  "version": "0.1.0-dev",
   "description": "Grow ideas rooted in conversation.",
   "main": "server/init.js",
   "scripts": {
@@ -21,6 +21,7 @@
     "cookie-parser": "^1.4.5",
     "debug": "^4.3.1",
     "express": "^4.17.1",
+    "express-session": "^1.17.1",
     "immutable": "^4.0.0-rc.12",
     "jest": "^26.6.3",
     "morgan": "^1.10.0",

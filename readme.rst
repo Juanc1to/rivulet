@@ -70,12 +70,18 @@ Software ecosystem under consideration
 `Vue.js <https://vuejs.org/>`_
   Web interface
 
+`Socket.io <https://socket.io/>`_
+  Realtime stuff that you'd expect from a chat application
+
 Supporting libraries
   - `Immutable.js <https://immutable-js.github.io/immutable-js/>`_
 
   - Testing with `Jest <https://jestjs.io/>`_, although I note that the default
     with Feathers is Mocha + assert.  I don't have a lot of experience with
     JavaScript testing frameworks; what do others think?
+
+  - Express testing support from `Supertest
+    <https://github.com/visionmedia/supertest>`_
 
   - Runtime configuration with `Node-config
     <https://lorenwest.github.io/node-config/>`_

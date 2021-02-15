@@ -20,7 +20,7 @@ const create_items = fromJS({
       id integer primary key,
       watershed_id integer,
       conclusions text,
-      active boolean,
+      head boolean,
       progression integer,
       updated timestamp with time zone)`,
   participation: `
