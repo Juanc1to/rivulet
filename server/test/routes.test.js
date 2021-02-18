@@ -1,8 +1,12 @@
+// external utilities
 const request = require('supertest');
+const { Repeat, Map, Set } = require('immutable');
+
+// model modules
 const app = require('../app');
-const { then_F } = require('./util/supertest');
 
 // local utilities
+const { then_F } = require('./util/supertest');
 const util = require('./db/util');
 
 const db = app.get('db');
@@ -93,7 +97,10 @@ describe('Accessing data-modifying routes (at /api)', function () {
           if (error) {
             done(error);
           } else {
-            expect(response.body).toEqual({ anonymous_token });
+            expect(response.body).toEqual({
+              anonymous_token,
+              user_id: expect.anything()
+            });
             access();
           }
         });
@@ -115,6 +122,7 @@ describe('Accessing data-modifying routes (at /api)', function () {
         } else {
           expect(response.body).toEqual({
             anonymous_token: expect.anything(),
+            user_id: expect.anything()
           });
           anonymous_token = response.body.anonymous_token;
           forget();
@@ -124,7 +132,7 @@ describe('Accessing data-modifying routes (at /api)', function () {
 });
 
 const watershed_details = {
-  branch_size: 3,
+  branch_size: 2,
   name: 'test watershed',
   description: 'about the test watershed',
 };
@@ -259,7 +267,16 @@ describe('At /api/watersheds, a user', function () {
         .post(messages_url)
         .send(message)
         .expect(201)
-        .end(then_F({ done, sendStatus: true }));
+        .end(function (error, response) {
+          if (error) {
+            done(error);
+          } else {
+            expect(response.body).toEqual({
+              reactions_api_ref: expect.stringContaining(messages_url)
+            });
+            done();
+          }
+        });
     });
 
     it('can list messages', function (done) {
@@ -280,7 +297,67 @@ describe('At /api/watersheds, a user', function () {
       agent
         .post(messages_url)
         .send(message)
-        .end(then_F({ done, next: list, sendStatus: true }));
+        .end(then_F({ done, next: list }));
+    });
+
+    it('can react to messages', function (done) {
+      const reaction = { intent: "+1" };
+      function react(reactions_url) {
+        agent
+          .post(reactions_url)
+          .send(reaction)
+          .expect(201)
+          .end(then_F({ done, sendStatus: true }));
+      }
+
+      agent
+        .post(messages_url)
+        .send(message)
+        .end(function (error, response) {
+          if (error) {
+            done(error);
+          } else {
+            react(response.body.reactions_api_ref);
+          }
+        });
+    });
+
+    it('can list reactions to a message', function (done) {
+      let reactions_url;
+      function list() {
+        agent
+          .get(reactions_url)
+          .expect(200)
+          .end(function (error, response) {
+            if (error) {
+              done(error);
+            } else {
+              expect(response.body[0].intent).toBe('+1');
+              done();
+            }
+          });
+      }
+
+      const reaction = { intent: "+1" };
+      function react() {
+        agent
+          .post(reactions_url)
+          .send(reaction)
+          .expect(201)
+          .end(then_F({ next: list, sendStatus: true }));
+      }
+
+      agent
+        .post(messages_url)
+        .send(message)
+        .end(function (error, response) {
+          if (error) {
+            done(error);
+          } else {
+            reactions_url = response.body.reactions_api_ref;
+            react();
+          }
+        });
     });
 
     /* it('can leave the watershed', function (done) {
@@ -288,3 +365,160 @@ describe('At /api/watersheds, a user', function () {
   });
 });
 
+describe('Together in a branch, a set of users', function () {
+  const branch_size = 2;
+  let user_agents, watershed_url;
+
+  beforeEach(function (done) {
+    function join_each(user_agent_list, user_nr = 0) {
+      if (user_nr === user_agent_list.size) {
+        done();
+      } else {
+        user_agent_list.getIn([user_nr, 'agent'])
+          .post(watershed_url)
+          .end(function (error, response) {
+            if (error) {
+              done(error);
+            } else {
+              join_each(user_agent_list, user_nr + 1)
+            }
+          });
+      }
+    }
+
+    function create_watershed() {
+      user_agents.getIn([0, 'agent'])
+        .post('/api/watersheds')
+        .send(watershed_details)
+        .end(function (error, response) {
+          if (error) {
+            done(error);
+          } else {
+            watershed_url = response.body.api_ref;
+            join_each(user_agents)
+          }
+        });
+    }
+
+    function first_register_each(user_agent_list, user_nr = 0) {
+      if (user_nr === user_agent_list.size) {
+        create_watershed();
+      } else {
+        user_agent_list.getIn([user_nr, 'agent'])
+          .post('/auth/anonymous')
+          .end(function (error, response) {
+            if (error) {
+              done(error);
+            } else {
+              user_agents = user_agents.set(user_nr,
+                user_agent_list.get(user_nr).set('user_id',
+                                                 response.body.user_id));
+              first_register_each(user_agent_list, user_nr + 1)
+            }
+          });
+      }
+    }
+
+    user_agents = Repeat(undefined, branch_size * 2).map(function () {
+      return Map({ agent: request.agent(app), user_id: undefined });
+    }).toList();
+    first_register_each(user_agents);
+  });
+
+  it('can use proposals to select a representative', function (done) {
+    let first_proposal_reactions_url, second_proposal_reactions_url;
+
+    function last_join() {
+      user_agents.last().get('agent')
+        .post(watershed_url)
+        .expect(200)
+        .end(function (error, response) {
+          if (error) {
+            done(error);
+          } else {
+            expect(response.body.progression).toBe(1);
+            expect(Set(response.body.branch_members)).toStrictEqual(
+              Set([user_agents.first().get('user_id'),
+                   user_agents.last().get('user_id')]));
+            done();
+          }
+        });
+    }
+
+    function first_join() {
+      user_agents.first().get('agent')
+        .post(watershed_url)
+        .expect(200)
+        .end(function (error, response) {
+          if (error) {
+            done(error);
+          } else {
+            expect(response.body.progression).toBe(1);
+            expect(Set(response.body.branch_members)).toStrictEqual(
+              Set([user_agents.first().get('user_id')]));
+            last_join();
+          }
+        });
+    }
+
+    function reaction_votes(user_agent_list, user_nr = 0) {
+      if (user_nr === user_agent_list.size) {
+        first_join();
+      } else {
+        const reactions_url = (user_nr < 2
+                               ? first_proposal_reactions_url
+                               : second_proposal_reactions_url);
+        user_agent_list.getIn([user_nr, 'agent'])
+          .post(reactions_url)
+          .send({ intent: "+1" })
+          .end(function (error, response) {
+            if (error) {
+              done(error);
+            } else {
+              reaction_votes(user_agent_list, user_nr + 1);
+            }
+          });
+      }
+    }
+
+    const proposal_template = Map({
+      content: 'proposing a representative',
+      proposal_type: 'representative',
+    });
+
+    function proposal_second_branch() {
+      user_agents.last().get('agent')
+        .post(`${watershed_url}/messages`)
+        .send(proposal_template.set('proposal_input',
+          String(user_agents.last().get('user_id'))).toJS())
+        .end(function (error, response) {
+          if (error) {
+            done(error);
+          } else {
+            second_proposal_reactions_url = response.body.reactions_api_ref;
+            reaction_votes(user_agents);
+          }
+        });
+    }
+
+    function proposal_first_branch() {
+      user_agents.first().get('agent')
+        .post(`${watershed_url}/messages`)
+        .send(proposal_template.set('proposal_input',
+          String(user_agents.first().get('user_id'))).toJS())
+        .end(function (error, response) {
+          if (error) {
+            done(error);
+          } else {
+            first_proposal_reactions_url = response.body.reactions_api_ref;
+            proposal_second_branch();
+          }
+        });
+    }
+
+    proposal_first_branch();
+  });
+
+  it.skip('can set a message as the branch summary', function (done) {
+  });
+});

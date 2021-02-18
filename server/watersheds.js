@@ -36,6 +36,7 @@ function browse_Q(db, options = {}) {
         from watersheds left join branches
           on watersheds.id = watershed_id and head
         left join participation on branches.id = branch_id
+          and end_status is null
         ${where_clause}
         group by watersheds.id`).all({ id })
   ).map(Map);
@@ -46,10 +47,13 @@ function browse(db, options = {}) {
 }
 
 function joinQueries(db, user_id, watershed_id) {
+  user_id = Number.parseInt(user_id);
+  watershed_id = Number.parseInt(watershed_id);
   const params = { user_id, watershed_id };
   const participation_rows = db.prepare(`
     select branch_id from participation
       inner join branches on participation.branch_id = branches.id
+        and end_status is null
       where branch_id is not null
             and branches.head
             and branches.watershed_id = $watershed_id
@@ -64,37 +68,37 @@ function joinQueries(db, user_id, watershed_id) {
   }
 
   /* We proceed by getting the progression (heh) associated with every row of
-   * the participation table with respect to a particular watershed.  We group
-   * these results by the user, and use the aggregate function `max` to
-   * select the "furthest" progression.
+   * the participation table with respect to a particular watershed.
    *
    * How much benefit would we gain from using this query directly as a
    * subquery in the `open_branches_rows` query that follows below?
    */
-  const progression = db.prepare(`
-    select max(coalesce(target_branch.progression,
-                        source_branch.progression + 1, 0)) as progression --,
+  const progression_rows = db.prepare(`
+    select coalesce(target_branch.progression,
+                    source_branch.progression + 1, 0) as progression,
+           participation.branch_id,
+           participation.branch_source_id
         -- We might want information like the following.  It's currently
         -- commented out, but note that it uses the \`max\` aggregate
         -- function as logical AND (which may be an SQLite-specific trick).
         --max(coalesce(target_branch.head, source_branch.head)) as head
       from users left join participation
-        on users.id = participation.user_id
+        on users.id = participation.user_id and end_status is null
       left join branches as source_branch
         on participation.branch_source_id = source_branch.id
       left join branches as target_branch
         on participation.branch_id = target_branch.id
-      where coalesce(source_branch.watershed_id,
+      where (coalesce(source_branch.watershed_id,
                      target_branch.watershed_id) = $watershed_id
             -- We want to allow the case where the participation join filled
             -- in empty values, as it means that the user has no recorded
             -- participation, yet.
-            or participation.user_id is null
-      group by users.id
-      having users.id = $user_id`).pluck().get(params);
-  // The `pluck` method above returns the value of the first column, rather
-  // than the whole row.  (But, since as currently formulated, it only has one
-  // column...)
+             or participation.user_id is null)
+            and users.id = $user_id`).all(params);
+  if (progression_rows.length !== 1) {
+    throw Error(
+      'Each user should have a unique progression within a watershed.')
+  }
 
   /* Now, given a progression level, we want to be able to find the id of an
    * head branch in that watershed and at that progression level that is not
@@ -107,8 +111,9 @@ function joinQueries(db, user_id, watershed_id) {
             and progression = $progression
             and (
               select count(user_id) from participation
-              where branch_id = branches.id
-            ) < watersheds.branch_size `).all({ watershed_id, progression });
+              where branch_id = branches.id and end_status is null
+            ) < watersheds.branch_size `)
+    .all({ watershed_id, progression: progression_rows[0].progression });
 
   let target_branch_id;
   if (open_branches_rows.length === 0) {
@@ -117,17 +122,36 @@ function joinQueries(db, user_id, watershed_id) {
       insert into branches (watershed_id, head, progression, updated)
         values ($watershed_id, true, $progression,
                 strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).run(
-      { watershed_id, progression });
+      { watershed_id, progression: progression_rows[0].progression });
     target_branch_id = new_branch_info.lastInsertRowid;
   } else {
     target_branch_id = open_branches_rows[0].id;
   }
 
-  const new_participation_info = db.prepare(`
-    insert into participation (user_id, branch_id, last_seen)
-      values ($user_id, $target_branch_id,
-              strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).run(
-    { user_id, target_branch_id });
+  if (progression_rows[0].branch_id === null &&
+      progression_rows[0].branch_source_id !== null) {
+    db.prepare(`
+      update participation set branch_id = $target_branch_id,
+        last_seen = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      where branch_source_id = $branch_source_id
+        and user_id = $user_id`)
+      .run({
+        user_id,
+        target_branch_id,
+        branch_source_id: progression_rows[0].branch_source_id
+      });
+  } else {
+    const new_participation_info = db.prepare(`
+      insert into participation (user_id, branch_id,
+                                 branch_source_id, last_seen)
+        values ($user_id, $target_branch_id, $branch_source_id,
+                strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`)
+      .run({
+        user_id,
+        target_branch_id,
+        branch_source_id: progression_rows[0].branch_source_id
+      });
+  }
   return target_branch_id;
 }
 
@@ -138,7 +162,8 @@ function join(db, user_id, watershed_id) {
 function watershed_count_Q(db, watershed_id) {
   return db.prepare(`
     select count(*) from participation inner join branches on branch_id = id
-      where head and watershed_id = $watershed_id`)
+      and end_status is null and head
+      where watershed_id = $watershed_id`)
     .pluck().get({ watershed_id });
 }
 
@@ -153,8 +178,8 @@ function messages_page_Q(db, branch_id) {
 function summaryQueries(db, user_id, watershed_id) {
   const branch_id = join(db, user_id, watershed_id);
   const branch_members = List(db.prepare(`
-    select user_id from participation where branch_id = $branch_id`)
-    .pluck().all({ branch_id }));
+    select user_id from participation where branch_id = $branch_id
+      and end_status is null`).pluck().all({ branch_id }));
   const watershed_participants_nr = watershed_count_Q(db, watershed_id);
   const message_nr = db.prepare(`
     select count(*) from messages where branch_id = $branch_id`)
@@ -198,4 +223,79 @@ function message(db, details) {
   return db.transaction(message_Q)(db, details);
 }
 
-module.exports = Object.freeze({ watershed, browse, join, summary, message });
+function reactions(db, message_id) {
+  return List(db.prepare(`
+    select * from reactions where message_id = $message_id`)
+    .all({ message_id }).map(Map));
+}
+
+function reaction_Q(db, details) {
+  const { user_id, intent, message_id } = details;
+  if (user_id === undefined || intent === undefined
+      || message_id === undefined) {
+    throw Error('Missing key reaction details');
+  }
+
+  // Check that the user with `user_id` is actually on the branch with the
+  // message
+  const participation = db.prepare(`
+    select participation.branch_id from participation inner join messages
+      on participation.branch_id = messages.branch_id
+         and participation.user_id = $user_id
+    where end_status is null and messages.id = $message_id`)
+    .all({ user_id, message_id });
+  if (participation.length === 0) {
+    throw Error('Attempting to react to a message on a different branch');
+  }
+
+  const new_reaction_info = db.prepare(`
+    insert into reactions (user_id, intent, message_id, submitted)
+      values ($user_id, $intent, $message_id,
+              strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`).run(details);
+
+  // Adding reactions can trigger additional actions if they are the final
+  // "+1" reaction on a representative proposal.
+  const message_row = db.prepare(`
+    select * from messages where id = $message_id`)
+    .get({ message_id });
+  if (message_row.proposal_type === 'representative') {
+    const branch_id = participation[0].branch_id;
+
+    const nr_affirmations = db.prepare(`
+      select count(distinct reactions.user_id) as nr_affirmations
+      from messages inner join reactions
+        on messages.id = reactions.message_id
+      where intent = '+1' and messages.id = $message_id`)
+      .pluck().get({ message_id });
+    const branch_size = db.prepare(`
+      select branch_size from watersheds inner join branches
+        on watersheds.id = branches.watershed_id
+      where branches.id = $branch_id`).pluck().get({ branch_id });
+
+    if (nr_affirmations === branch_size) {
+      const representative_id = message_row.proposal_input;
+      db.prepare(`
+        update participation set end_status = 'representative'
+          where user_id = $representative_id
+                and branch_id = $branch_id`).run({
+        representative_id, branch_id });
+      db.prepare(`
+        insert into participation (user_id, branch_source_id) values
+          ($representative_id, $branch_id)`).run({
+        representative_id, branch_id });
+      db.prepare(`
+        update branches set head = false,
+          updated = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          where id = $branch_id`).run({ branch_id });
+    }
+  }
+  return new_reaction_info.lastInsertRowid;
+}
+
+function reaction(db, details) {
+  return reaction_Q(db, details);
+  //return db.transaction(reaction_Q)(db, details);
+}
+
+module.exports = Object.freeze({
+  watershed, browse, join, summary, message, reactions, reaction });

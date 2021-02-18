@@ -27,7 +27,7 @@ router.get('/watersheds', function (req, res) {
     return entry.filterNot(function (value, key) {
       return key === 'id';
     })
-    .set('api_ref', `/api/watersheds/${entry.get('id')}`);
+    .set('api_ref', `${req.originalUrl}/${entry.get('id')}`);
   });
   res.send(list.toJS());
 });
@@ -43,7 +43,7 @@ router.post('/watersheds', function (req, res) {
   details = details.filterNot(function (value, key) {
     return key === 'id';
   })
-  .set('api_ref', `/api/watersheds/${details.get('id')}`);
+  .set('api_ref', `${req.originalUrl}/${details.get('id')}`);
   res.status(201).send(details.toJS());
 });
 
@@ -52,7 +52,7 @@ router.post('/watersheds/:id', function (req, res) {
                                    req.params.id);
   summary = summary.filterNot(function (value, key) {
     return key === 'id';
-  }).set('messages_api_ref', `/api/watersheds/${req.params.id}/messages`);
+  }).set('messages_api_ref', `${req.originalUrl}/messages`);
   res.send(summary.toJS());
 });
 
@@ -62,16 +62,41 @@ router.post('/watersheds/:id/messages', function (req, res) {
     watershed_id: req.params.id,
     ...req.body
   });
-  res.sendStatus(201);
+  res.status(201).send({
+    reactions_api_ref: `${req.originalUrl}/${message_id}/reactions`
+  });
 });
 
 router.get('/watersheds/:id/messages', function (req, res) {
-  let summary = watersheds.summary(req.app.get('db'), req.session.user_id,
-                                   req.params.id);
-  summary = summary.filterNot(function (value, key) {
-    return key === 'id';
-  }).set('messages_api_ref', `/api/watersheds/${req.params.id}/messages`);
-  res.send(summary.get('messages_page').toJS());
+  let messages_page = watersheds.summary(req.app.get('db'),
+    req.session.user_id, req.params.id).get('messages_page');
+  messages_page = messages_page.map(function (entry) {
+    return entry.set('reactions_api_ref',
+                     `${req.originalUrl}/${entry.get('id')}/reactions`);
+  });
+  res.send(messages_page.toJS());
+});
+
+router.post('/watersheds/:id/messages/:message_id/reactions',
+            function (req, res) {
+  try {
+  const reaction_id = watersheds.reaction(req.app.get('db'), {
+    user_id: req.session.user_id,
+    message_id: req.params.message_id,
+    ...req.body
+  });
+  res.sendStatus(201);
+  } catch (exception) {
+    console.log(exception);
+    res.sendStatus(500);
+  }
+});
+
+router.get('/watersheds/:id/messages/:message_id/reactions',
+           function (req, res) {
+  const reactions_list = watersheds.reactions(req.app.get('db'),
+                                              req.params.message_id);
+  res.send(reactions_list.toJS());
 });
 
 module.exports = router;

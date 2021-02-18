@@ -46,8 +46,8 @@ describe('A user', function () {
     expect(rows.length).toBe(1);
   });
 
-  it('can join a watershed (ending up in a branch)', db.transaction(
-  function () {
+  it('can join a watershed (ending up in a branch)',
+     db.transaction(function () {
     const user_id = users.anonymous(db).user_id;
     const user2_id = users.anonymous(db).user_id;
     const watershed_id = watersheds.watershed(db);
@@ -62,8 +62,8 @@ describe('A user', function () {
     expect(rows.length).toBe(1);
   }));
 
-  it('can browse the details of a single watershed', db.transaction(
-  function () {
+  it('can browse the details of a single watershed',
+     db.transaction(function () {
     const watershed_options = { branch_size: 3, name: 'n', description: 'd' };
     const watershed_id = watersheds.watershed(db, watershed_options);
 
@@ -122,7 +122,7 @@ describe('A user', function () {
   }));
 
   it('will be assigned a new branch when existing branches are full',
-      db.transaction(function () {
+     db.transaction(function () {
     const branch_size = 3;
     const watershed_id = watersheds.watershed(db, { branch_size });
     const user_spots = Repeat(undefined, branch_size + 1);
@@ -135,7 +135,7 @@ describe('A user', function () {
   }));
 
   it('can send a message with scope restricted to their branch',
-      db.transaction(function () {
+     db.transaction(function () {
     const branch_size = 3;
     const watershed_id = watersheds.watershed(db, { branch_size });
     const user_spots = Repeat(undefined, branch_size + 1);
@@ -168,5 +168,40 @@ describe('A user', function () {
       .toContain('from first');
     expect(last_summary.get('messages_page').map(peek_content).toArray())
       .toContain('from last');
+  }));
+
+  it('can add a reaction to a message', db.transaction(function () {
+    const watershed_id = watersheds.watershed(db);
+    const user_id = users.anonymous(db).user_id;
+    const branch_id = watersheds.join(db, user_id, watershed_id);
+    const message_id = watersheds.message(db, {
+      author_id: user_id, content: 'test message', watershed_id });
+    const reaction_id = watersheds.reaction(db, {
+      user_id, intent: "+1", message_id });
+    const reactions = watersheds.reactions(db, message_id);
+    expect(reactions.size).toBe(1);
+    expect(reactions.get(0).get('intent')).toBe('+1');
+  }));
+
+  it('cannot add a reaction to a message outside of their branch',
+     db.transaction(function () {
+    const branch_size = 3;
+    const watershed_id = watersheds.watershed(db, { branch_size });
+    const user_spots = Repeat(undefined, branch_size + 1);
+    const new_users = user_spots.map(function userjoin() {
+      const user_id = users.anonymous(db).user_id;
+      const branch_id = watersheds.join(db, user_id, watershed_id);
+      return user_id;
+    }).toList();
+
+    const message_id = watersheds.message(db, {
+      author_id: new_users.first(),
+      content: "from first",
+      watershed_id,
+    });
+    expect(function () {
+      watersheds.reaction(db,
+        { user_id: new_users.last(), intent: "+1", message_id })
+    }).toThrow('different branch')
   }));
 });

@@ -28,6 +28,7 @@ const create_items = fromJS({
       user_id integer,
       branch_id integer,
       branch_source_id integer,
+      end_status text,
       last_seen timestamp with time zone,
       override boolean)`,
   participation_index: `

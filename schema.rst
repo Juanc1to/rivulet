@@ -119,6 +119,11 @@ This table tracks how users are participating in branches throughout a space.  A
       is empty, it means the user's participation in the current branch was as
       an entry into the watershed.
     - reference to the branch, in n:1? correspondence
+  * - end status
+    - indicates the reason why the user is no longer on the branch under
+      consideration; if this is null, then the user should still be active on
+      that branch.
+    - string from curated list (e.g. abandoned, ejected, representative)
   * - last seen
     - when the user was last noted to have connected to the branch
     - timestamp

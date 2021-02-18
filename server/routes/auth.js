@@ -12,7 +12,7 @@ router.post('/anonymous', function (req, res) {
   const db = req.app.get('db');
   const { user_id, anonymous_token } = users.anonymous(db);
   req.session.user_id = user_id;
-  res.send({ anonymous_token });
+  res.send({ anonymous_token, user_id });
 });
 
 router.get('/anonymous/:token', function (req, res) {
@@ -23,7 +23,7 @@ router.get('/anonymous/:token', function (req, res) {
     res.sendStatus(400);
   }
   req.session.user_id = user_id;
-  res.send({ anonymous_token: req.params.token });
+  res.send({ anonymous_token: req.params.token, user_id });
 });
 
 router.post('/forget', function (req, res) {
