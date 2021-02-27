@@ -46,6 +46,17 @@ describe('A user', function () {
     expect(rows.length).toBe(1);
   });
 
+  it('can update the personal details of their account', function () {
+    const id = users.anonymous(db).user_id;
+
+    const details = { id, name: 'test name', email: 'test@email.ext' };
+    users.update(db, details);
+    const rows = db.prepare(
+      'select * from users where name = $name and email = $email')
+      .all(details);
+    expect(rows[0].id).toBe(id);
+  });
+
   it('can join a watershed (ending up in a branch)',
      db.transaction(function () {
     const user_id = users.anonymous(db).user_id;
@@ -85,8 +96,8 @@ describe('A user', function () {
     const summary = watersheds.summary(db, user_id, watershed_id);
 
     expect(summary.get('branch_members').size).toBe(2);
-    expect(summary.get('watershed_participants_nr')).toBe(2);
-    expect(summary.get('message_nr')).toBe(0);
+    expect(summary.get('nr_watershed_participants')).toBe(2);
+    expect(summary.get('nr_messages')).toBe(0);
     expect(summary.get('messages_page').size).toBe(0);
     expect(summary.get('progression')).toBe(0);
   }));
@@ -159,8 +170,8 @@ describe('A user', function () {
                                              watershed_id);
     const last_summary = watersheds.summary(db, new_users.last(),
                                             watershed_id);
-    expect(first_summary.get('message_nr')).toBe(1);
-    expect(last_summary.get('message_nr')).toBe(1);
+    expect(first_summary.get('nr_messages')).toBe(1);
+    expect(last_summary.get('nr_messages')).toBe(1);
     function peek_content(details) {
       return details.get('content');
     }

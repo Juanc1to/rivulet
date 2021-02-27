@@ -46,14 +46,16 @@ function onError(error) {
 /**
  * Event listener for HTTP server "listening" event
  */
-function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
-    ? 'pipe ' + addr
-    : 'port ' + addr.port;
-  debug('Listening on ' + bind);
+function onListening_F(server) {
+  return function () {
+    var addr = server.address();
+    var bind = typeof addr === 'string'
+      ? 'pipe ' + addr
+      : 'port ' + addr.port;
+    debug('Listening on ' + bind);
+  };
 }
 
 module.exports = Object.freeze({
-  normalizePort, onListening, onError
+  normalizePort, onListening_F, onError
 });

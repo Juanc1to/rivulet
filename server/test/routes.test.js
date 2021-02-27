@@ -17,20 +17,27 @@ afterEach(util.delete_from_each_table_factory(db));
 
 describe('Accessing data-modifying routes (at /api)', function () {
   it('requires authorization by default', function (done) {
+    function try_create() {
+      request(app)
+        .post('/api/watersheds')
+        .expect(401)
+        .end(then_F({ done }));
+    }
+
     request(app)
       .get('/api')
       .expect(401)
-      .end(then_F({ done }));
+      .end(then_F({ done, next: try_create }));
   });
 
   it('supports anonymous identification', function (done) {
-    const agent = request.agent(app);
+    const agent = request.agent(app).accept('json');
 
     function reregister() {
       // If you have already set up an anonymous session, you can't do it again
       // without forgetting the old one first.
       agent
-        .post('/auth/anonymous')
+        .post('/account/anonymous')
         .expect(422)
         .end(then_F({ done, sendStatus: true }));
     }
@@ -44,19 +51,35 @@ describe('Accessing data-modifying routes (at /api)', function () {
 
     function register() {
       agent
-        .post('/auth/anonymous')
+        .post('/account/anonymous')
         .expect(200)
         .end(then_F({ done, next: access }));
     }
 
     agent
-      .get('/auth/anonymous/foo')
+      .get('/account/anonymous/foo')
       .expect(400)  // This might be better as 422...
       .end(then_F({ done, next: register, sendStatus: true }));
   });
 
+  it('supports updating user details', function (done) {
+    const agent = request.agent(app).accept('json');
+
+    function update() {
+      agent
+        .post('/account')
+        .send({ name: 'test name', email: 'test@email.ext' })
+        .expect(200)
+        .end(then_F({ done }));
+    }
+
+    agent
+      .post('/account/anonymous')
+      .end(then_F({ done, next: update }));
+  });
+
   it('supports logging out', function (done) {
-    const agent = request.agent(app);
+    const agent = request.agent(app).accept('json');
 
     function access() {
       agent
@@ -67,19 +90,19 @@ describe('Accessing data-modifying routes (at /api)', function () {
 
     function forget() {
       agent
-        .post('/auth/forget')
+        .post('/account/forget')
         .expect(200)
         .end(then_F({ done, next: access, sendStatus: true }));
     }
 
     agent
-      .post('/auth/anonymous')
+      .post('/account/anonymous')
       .expect(200)
       .end(then_F({ done, next: forget }));
   });
 
   it('can retrieve previous anonymous identification', function (done) {
-    const agent = request.agent(app);
+    const agent = request.agent(app).accept('json');
     let anonymous_token;
 
     function access() {
@@ -91,7 +114,7 @@ describe('Accessing data-modifying routes (at /api)', function () {
 
     function identify() {
       agent
-        .get(`/auth/anonymous/${anonymous_token}`)
+        .get(`/account/anonymous/${anonymous_token}`)
         .expect(200)
         .end(function (error, response) {
           if (error) {
@@ -99,7 +122,9 @@ describe('Accessing data-modifying routes (at /api)', function () {
           } else {
             expect(response.body).toEqual({
               anonymous_token,
-              user_id: expect.anything()
+              user_id: expect.anything(),
+              email: null,
+              name: null
             });
             access();
           }
@@ -108,13 +133,13 @@ describe('Accessing data-modifying routes (at /api)', function () {
 
     function forget() {
       agent
-        .post('/auth/forget')
+        .post('/account/forget')
         .expect(200)
         .end(then_F({ done, next: identify, sendStatus: true }));
     }
 
     agent
-      .post('/auth/anonymous')
+      .post('/account/anonymous')
       .expect(200)
       .end(function (error, response) {
         if (error) {
@@ -141,9 +166,9 @@ describe('At /api/watersheds, a user', function () {
   let agent;
 
   beforeEach(function (done) {
-    agent = request.agent(app);
+    agent = request.agent(app).accept('json');
     agent
-      .post('/auth/anonymous')
+      .post('/account/anonymous')
       .end(then_F({ done }));
   });
 
@@ -206,8 +231,8 @@ describe('At /api/watersheds, a user', function () {
           } else {
             expect(response.body).toEqual({
               branch_members: expect.anything(),
-              watershed_participants_nr: 1,
-              message_nr: 0,
+              nr_watershed_participants: 1,
+              nr_messages: 0,
               messages_page: [],
               progression: 0,
               messages_api_ref: expect.stringContaining(watershed_url),
@@ -405,7 +430,7 @@ describe('Together in a branch, a set of users', function () {
         create_watershed();
       } else {
         user_agent_list.getIn([user_nr, 'agent'])
-          .post('/auth/anonymous')
+          .post('/account/anonymous')
           .end(function (error, response) {
             if (error) {
               done(error);
@@ -420,7 +445,8 @@ describe('Together in a branch, a set of users', function () {
     }
 
     user_agents = Repeat(undefined, branch_size * 2).map(function () {
-      return Map({ agent: request.agent(app), user_id: undefined });
+      return Map({ agent: request.agent(app).accept('json'),
+                   user_id: undefined });
     }).toList();
     first_register_each(user_agents);
   });
@@ -437,9 +463,9 @@ describe('Together in a branch, a set of users', function () {
             done(error);
           } else {
             expect(response.body.progression).toBe(1);
-            expect(Set(response.body.branch_members)).toStrictEqual(
-              Set([user_agents.first().get('user_id'),
-                   user_agents.last().get('user_id')]));
+            expect(response.body.branch_members).toStrictEqual(
+              [{ name: null, user_id: user_agents.first().get('user_id') },
+               { name: null, user_id: user_agents.last().get('user_id') }]);
             done();
           }
         });
@@ -454,8 +480,8 @@ describe('Together in a branch, a set of users', function () {
             done(error);
           } else {
             expect(response.body.progression).toBe(1);
-            expect(Set(response.body.branch_members)).toStrictEqual(
-              Set([user_agents.first().get('user_id')]));
+            expect(response.body.branch_members).toStrictEqual(
+              [{ name: null, user_id: user_agents.first().get('user_id') }]);
             last_join();
           }
         });

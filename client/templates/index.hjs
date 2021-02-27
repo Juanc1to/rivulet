@@ -1,0 +1,37 @@
+<html>
+  <head>
+    <title>{{> head_title }}</title>
+  </head>
+  <body>
+    <h1>{{> body_title }}</h1>
+    <div id="identification">
+      {{# user_id }}
+        {{> identified }}
+      {{/ user_id }}
+      {{^ user_id }}
+        {{> identify }}
+      {{/ user_id }}
+    </div>
+    <div>
+      <h2>Watersheds in this space</h2>
+      {{^ watersheds? }}
+        <p>There are no watersheds yet.</p>
+      {{/ watersheds? }}
+      {{# watersheds? }}
+        {{# watersheds }}
+          {{> watershed_summary }}
+        {{/ watersheds }}
+      {{/ watersheds? }}
+
+      {{# user_id }}
+      <p>Add a new watershed:</p>
+      <form method="post" action="/api/watersheds">
+        <p>Name: <input name="name" /></p>
+        <p>Description: <input name="description" /></p>
+        <p>Branch size: <input name="branch_size" /></p>
+        <button type="submit">Create</button>
+      </form>
+      {{/ user_id }}
+    </div>
+  </body>
+</html>

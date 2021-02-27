@@ -1,5 +1,5 @@
 const config = require('config');
-const { List, Map } = require('immutable');
+const { List, Map, fromJS } = require('immutable');
 
 function watershed(db, options = {}) {
   let { branch_size, name, description } = options;
@@ -8,6 +8,11 @@ function watershed(db, options = {}) {
       branch_size = config.get('branch_size');
     } else {
       branch_size = 5;
+    }
+  } else {
+    branch_size = Number.parseInt(branch_size, 10);
+    if (Number.isNaN(branch_size)) {
+      throw Error('The branch size must be an integer.');
     }
   }
 
@@ -28,7 +33,7 @@ function browse_Q(db, options = {}) {
     where_clause = 'where watersheds.id = $id';
   }
 
-  return List(
+  return fromJS(
     db.prepare(`
       select watersheds.id, watersheds.name, watersheds.description,
              watersheds.updated, branch_size,
@@ -38,8 +43,7 @@ function browse_Q(db, options = {}) {
         left join participation on branches.id = branch_id
           and end_status is null
         ${where_clause}
-        group by watersheds.id`).all({ id })
-  ).map(Map);
+        group by watersheds.id`).all({ id }));
 }
 
 function browse(db, options = {}) {
@@ -170,18 +174,20 @@ function watershed_count_Q(db, watershed_id) {
 function messages_page_Q(db, branch_id) {
   // I need to figure out how to coordinate paging between the controller and
   // the model, at some point...
-  return List(db.prepare(`
+  return fromJS(db.prepare(`
     select * from messages where branch_id = $branch_id`)
-    .all({ branch_id }).map(Map));
+    .all({ branch_id }));
 }
 
 function summaryQueries(db, user_id, watershed_id) {
   const branch_id = join(db, user_id, watershed_id);
-  const branch_members = List(db.prepare(`
-    select user_id from participation where branch_id = $branch_id
-      and end_status is null`).pluck().all({ branch_id }));
-  const watershed_participants_nr = watershed_count_Q(db, watershed_id);
-  const message_nr = db.prepare(`
+  const branch_members = fromJS(db.prepare(`
+    select user_id, name from participation left join users
+      on user_id = users.id
+      where branch_id = $branch_id
+      and end_status is null`).all({ branch_id }));
+  const nr_watershed_participants = watershed_count_Q(db, watershed_id);
+  const nr_messages = db.prepare(`
     select count(*) from messages where branch_id = $branch_id`)
     .pluck().get({ branch_id });
   // I need to figure out how to coordinate paging between the controller and
@@ -191,7 +197,7 @@ function summaryQueries(db, user_id, watershed_id) {
     select progression from branches where id = $branch_id`)
     .pluck().get({ branch_id });
 
-  return Map({ branch_members, watershed_participants_nr, message_nr,
+  return Map({ branch_members, nr_watershed_participants, nr_messages,
                messages_page, progression });
 }
 
@@ -204,6 +210,7 @@ function message_Q(db, details) {
           proposal_type, proposal_input } = details;
   if (author_id === undefined || content === undefined
       || watershed_id === undefined) {
+    console.log('message details:', details);
     throw Error('Missing key message details');
   }
   const branch_id = join(db, author_id, watershed_id);
@@ -224,9 +231,9 @@ function message(db, details) {
 }
 
 function reactions(db, message_id) {
-  return List(db.prepare(`
+  return fromJS(db.prepare(`
     select * from reactions where message_id = $message_id`)
-    .all({ message_id }).map(Map));
+    .all({ message_id }));
 }
 
 function reaction_Q(db, details) {

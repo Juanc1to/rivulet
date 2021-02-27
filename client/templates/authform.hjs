@@ -1,0 +1,17 @@
+<html>
+  <head>
+    <title>{{> head_title }}</title>
+  </head>
+  <body>
+    <h1>{{> body_title }}</h1>
+    <p>If you have not connected to this space before, you can establish a
+    session in order to add content:</p>
+
+    <form method="post" action="/auth/anonymous">
+      <button type="submit">New session</button>
+    </form>
+
+    <p>If you have connected before, you can use your anonymous link
+    in order to return to that session.</p>
+  </body>
+</html>

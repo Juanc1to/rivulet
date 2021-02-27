@@ -5,11 +5,13 @@ const watersheds = require('../watersheds');
 const router = express.Router();
 
 /* GET home page. */
-router.all('/', function (req, res, next) {
+router.use(function (req, res, next) {
+  console.log('session:', req.session);
   if (req.session.user_id === undefined) {
     res.sendStatus(401);
+  } else {
+    next();
   }
-  next();
 });
 
 router.get('/', function (req, res) {
@@ -19,8 +21,8 @@ router.get('/', function (req, res) {
 
 // TODO: I'm going to want to part this out into a separate module with a
 // separate router for watersheds, at which point I'll need to make sure to
-// rerun the tests to make sure how I understand router composition is actually
-// how it works.
+// rerun the tests to make sure that how I understand router composition is
+// actually how it works.
 router.get('/watersheds', function (req, res) {
   let list = watersheds.browse(req.app.get('db'));
   list = list.map(function (entry) {
@@ -44,7 +46,15 @@ router.post('/watersheds', function (req, res) {
     return key === 'id';
   })
   .set('api_ref', `${req.originalUrl}/${details.get('id')}`);
-  res.status(201).send(details.toJS());
+  if (req.accepts('html')) {
+    let redirect_url = req.get('Referer');
+    if (redirect_url === undefined) {
+      redirect_url = '/';
+    }
+    res.redirect(303, redirect_url);
+  } else {
+    res.status(201).send(details.toJS());
+  }
 });
 
 router.post('/watersheds/:id', function (req, res) {

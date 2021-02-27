@@ -1,6 +1,6 @@
 const app = require('./app');
 const http = require('http');
-const { normalizePort, onListening, onError } = require('./util/express');
+const { normalizePort, onListening_F, onError } = require('./util/express');
 
 /**
  * Get port from environment and store in Express.
@@ -19,4 +19,4 @@ const server = http.createServer(app);
  */
 server.listen(port);
 server.on('error', onError);
-server.on('listening', onListening);
+server.on('listening', onListening_F(server));
