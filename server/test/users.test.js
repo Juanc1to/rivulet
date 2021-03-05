@@ -71,6 +71,14 @@ describe('A user', function () {
          where user_id = $user_id
          and branch_id = $branch_id`).all({ user_id, branch_id });
     expect(rows.length).toBe(1);
+
+    const watershed2_id = watersheds.watershed(db);
+    const branch3_id = watersheds.join(db, user_id, watershed2_id);
+    const rows2 = db.prepare(
+      `select * from participation
+         where user_id = $user_id
+         and branch_id = $branch3_id`).all({ user_id, branch3_id });
+    expect(rows2.length).toBe(1);
   }));
 
   it('can browse the details of a single watershed',

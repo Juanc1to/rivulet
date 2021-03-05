@@ -78,27 +78,28 @@ function joinQueries(db, user_id, watershed_id) {
    * subquery in the `open_branches_rows` query that follows below?
    */
   const progression_rows = db.prepare(`
-    select coalesce(target_branch.progression,
-                    source_branch.progression + 1, 0) as progression,
+    select coalesce(target_branch_progression,
+                    source_branch_progression + 1, 0) as progression,
            participation.branch_id,
            participation.branch_source_id
         -- We might want information like the following.  It's currently
         -- commented out, but note that it uses the \`max\` aggregate
         -- function as logical AND (which may be an SQLite-specific trick).
         --max(coalesce(target_branch.head, source_branch.head)) as head
-      from users left join participation
+      from users left join
+        (select user_id, end_status, branch_id, branch_source_id,
+                source_branch.progression as source_branch_progression,
+                target_branch.progression as target_branch_progression
+          from participation
+          left join branches as source_branch
+            on participation.branch_source_id = source_branch.id
+          left join branches as target_branch
+            on participation.branch_id = target_branch.id
+          where coalesce(source_branch.watershed_id,
+                         target_branch.watershed_id) = $watershed_id)
+        as participation
         on users.id = participation.user_id and end_status is null
-      left join branches as source_branch
-        on participation.branch_source_id = source_branch.id
-      left join branches as target_branch
-        on participation.branch_id = target_branch.id
-      where (coalesce(source_branch.watershed_id,
-                     target_branch.watershed_id) = $watershed_id
-            -- We want to allow the case where the participation join filled
-            -- in empty values, as it means that the user has no recorded
-            -- participation, yet.
-             or participation.user_id is null)
-            and users.id = $user_id`).all(params);
+      where users.id = $user_id`).all(params);
   if (progression_rows.length !== 1) {
     throw Error(
       'Each user should have a unique progression within a watershed.')
