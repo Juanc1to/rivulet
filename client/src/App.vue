@@ -1,23 +1,37 @@
 <template>
-  <div>
-    <div>
+  <div id="content">
+    <!--ui-button raised @click="prompt_account_update = true"
+      class="tools">Update account details</ui-button-->
+    <ui-icon-button @click="prompt_account_update = true"
+      icon="account_circle" class="tools" title="Update account details"/>
+
+    <h1>Welcome to Rivulet</h1>
+
+    <!--ui-top-app-bar content-selector="#content">Rivulet</ui-top-app-bar-->
+    <!--div>
       <p>user_id: {{ user_id }}</p>
       <p>anonymous_token: {{ anonymous_token }}</p>
-    </div>
+    </div-->
 
     <ui-grid>
       <ui-grid-cell columns="8">
-        <Discussion :watershed_id="focused_watershed_id" />
+        <Discussion :watershed_ref="focused_watershed_ref"
+                    :watershed_name="focused_watershed_name"/>
       </ui-grid-cell>
-      <ui-grid-cell><Watersheds v-if="user_id !== undefined" /></ui-grid-cell>
+      <ui-grid-cell>
+        <Watersheds v-if="user_id !== undefined"
+                    :watershed_ref="focused_watershed_ref"
+                    @joined-watershed="note_joined_watershed($event)"/>
+      </ui-grid-cell>
     </ui-grid>
-
-    <ui-button raised @click="prompt_account_update = true"
-      >Update account details</ui-button>
 
     <ui-dialog v-model="prompt_account_update" @confirm="update_account">
       <ui-dialog-title>Update your account information</ui-dialog-title>
       <ui-dialog-content>
+        <p>Your account token is: <a
+            :href="'/account/anonymous/' + anonymous_token"
+          >{{ anonymous_token }}</a>.  You can use that link to reconnect to
+          your account.</p>
         <ui-form>
           <ui-form-field>
             <label>Name:</label>
@@ -41,6 +55,8 @@
 <script>
 const request = require('superagent');
 
+const { HOST } = require('./constants');
+
 const Watersheds = require('./components/Watersheds.vue').default;
 const Discussion = require('./components/Discussion.vue').default;
 
@@ -54,7 +70,8 @@ module.exports = {
     return {
       user_id: undefined,
       anonymous_token: undefined,
-      focused_watershed_id: undefined,
+      focused_watershed_ref: undefined,
+      focused_watershed_name: undefined,
 
       prompt_account_update: false,
       account_name: undefined,
@@ -65,7 +82,7 @@ module.exports = {
     update_account() {
       const component = this;
       request
-        .post('http://localhost:3000/account/')
+        .post(`${HOST}/account/`)
         .withCredentials()
         .send({
           name: component.account_name,
@@ -76,12 +93,17 @@ module.exports = {
             component.prompt_account_update = false;
           }
         });
+    },
+    note_joined_watershed(details) {
+      this.focused_watershed_ref = details.api_ref;
+      this.focused_watershed_name = details.name;
     }
   },
   created: function () {
     const component = this;
     request
-      .get('http://localhost:3000/account/anonymous/4020e36f-7246-4657-aa1b-dff24f9a0484')
+      //.get(`${HOST}/account/anonymous/4020e36f-7246-4657-aa1b-dff24f9a0484`)
+      .get(`${HOST}/account/anonymous/4020e36f-7246-4657-aa1b-dff24f9a0484`)
       .withCredentials()
       .accept('json')
       .end(function (error, result) {
@@ -93,7 +115,11 @@ module.exports = {
           // This is just hardcoded for now, but eventually will open ... based
           // on a cookie, I guess (and modified by selecting a watershed from
           // the list).
-          component.focused_watershed_id = "1";
+          if (result.body.last_watershed !== undefined) {
+            component.note_joined_watershed(result.body.last_watershed);
+          }
+          /* component.focused_watershed_ref = "/api/watersheds/1";
+          component.focused_watershed_name = "@@Placeholder@@"; */
         }
       });
   }
@@ -107,6 +133,10 @@ module.exports = {
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-  margin-top: 60px;
+  /* margin-top: 60px; */
+}
+
+.tools {
+  float: right;
 }
 </style>

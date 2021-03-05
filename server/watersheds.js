@@ -181,6 +181,12 @@ function messages_page_Q(db, branch_id) {
 }
 
 function summaryQueries(db, user_id, watershed_id) {
+  const watershed_rows = fromJS(db.prepare(`
+    select * from watersheds where id = $watershed_id`)
+    .all({ watershed_id }));
+  if (watershed_rows.size !== 1) {
+    throw Error('Exactly 1 watershed not found');
+  }
   const branch_id = join(db, user_id, watershed_id);
   const branch_members = fromJS(db.prepare(`
     select user_id, name from participation left join users
@@ -198,7 +204,8 @@ function summaryQueries(db, user_id, watershed_id) {
     select progression from branches where id = $branch_id`)
     .pluck().get({ branch_id });
 
-  return Map({ branch_members, nr_watershed_participants, nr_messages,
+  return Map({ watershed_details: watershed_rows.get(0),
+               branch_members, nr_watershed_participants, nr_messages,
                messages_page, progression });
 }
 
@@ -207,12 +214,17 @@ function summary(db, user_id, watershed_id) {
 }
 
 function message_Q(db, details) {
-  const { author_id, content, watershed_id, quoted_message_id,
-          proposal_type, proposal_input } = details;
+  let { author_id, content, watershed_id, quoted_message_id,
+        proposal_type, proposal_input } = details;
   if (author_id === undefined || content === undefined
       || watershed_id === undefined) {
     console.log('message details:', details);
     throw Error('Missing key message details');
+  }
+  // Any proposal suggesting a representative with no other input is considered
+  // to be a nomination for the author of the proposal.
+  if (proposal_type === 'representative' && proposal_input === undefined) {
+    proposal_input = String(author_id);
   }
   const branch_id = join(db, author_id, watershed_id);
   const new_message_info = db.prepare(`
@@ -235,6 +247,18 @@ function reactions(db, message_id) {
   return fromJS(db.prepare(`
     select * from reactions where message_id = $message_id`)
     .all({ message_id }));
+}
+
+function branch_reactions_Q(db, user_id, watershed_id) {
+  const branch_id = joinQueries(db, user_id, watershed_id);
+  return fromJS(db.prepare(`
+    select reactions.* from reactions inner join messages
+      on message_id = messages.id where branch_id = $branch_id`)
+    .all({ branch_id }));
+}
+
+function branch_reactions(db, user_id, watershed_id) {
+  return db.transaction(branch_reactions_Q)(db, user_id, watershed_id);
 }
 
 function reaction_Q(db, details) {
@@ -306,4 +330,5 @@ function reaction(db, details) {
 }
 
 module.exports = Object.freeze({
-  watershed, browse, join, summary, message, reactions, reaction });
+  watershed, browse, join, summary, message, reactions, branch_reactions,
+  reaction });

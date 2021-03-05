@@ -7,5 +7,11 @@
     "connection": {
       "filename": "db.sqlite"
     }
+  },
+  "connect-sqlite3": {
+    "table": "sessions",
+    "db": "sessions.sqlite",
+    "dir": ".",
+    "concurrentDB": "false"
   }
 }

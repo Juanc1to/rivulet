@@ -8,5 +8,11 @@
     "connection": {
       "filename": "testing.sqlite"
     }
+  },
+  "connect-sqlite3.disabled": {
+    "table": "sessions",
+    "db": "sessions-testing.sqlite",
+    "dir": ".",
+    "concurrentDB": "false"
   }
 }

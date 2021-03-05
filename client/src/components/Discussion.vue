@@ -1,44 +1,143 @@
 <template>
   <div>
     <h1>Your branch discussion in {{ watershed_name }}</h1>
+
+    <p>With:
+      <span v-for="(member, index) in branch_members_L"
+            :key="index">
+        <span :class="{ anonymous: member.get('name') === null }"
+          >{{ member.get('name') === null
+              ? 'Anon' : member.get('name') }}</span>
+        <span v-if="index < branch_members_L.size - 1">, </span>
+      </span>
+    </p>
+
     <div id="messages">
       <div v-for="(message, index) in messages_page" :key="message.id"
            class="message"
            :id="index === messages_page.length - 1
                 ? 'last_message' : undefined">
-        <div class="author">Author: {{
-          branch_members[message.author_id].name === null
-          ? message.author_id
-          : branch_members[message.author_id].name }}</div>
-        <div class="date">Date: {{ message.submitted }}</div>
+        <!--ui-icon-button icon="plus_one" class="reaction" /-->
+        <div v-if="message.proposal_type !== null" class="proposal_info"
+          >Proposal: {{ message.proposal_type }}</div>
+        <ui-button class="reaction" @click="react(message.id, '+1')"
+          ><ui-icon size="18">plus_one</ui-icon></ui-button>
+        <div class="message_info">
+          <span class="author">{{
+            branch_members[message.author_id].name === null
+            ? message.author_id
+            : branch_members[message.author_id].name }}</span>
+          <span class="date">{{ message.submitted.replace('T', ' ') }}</span>
+        </div>
         <div class="content">{{ message.content }}</div>
+        <div v-if="reactions_by_message !== undefined
+                   && reactions_by_message[message.id]">
+          <ui-button icon="plus_one" title="@@display names here@@"
+              class="reactions"
+            >: {{ reactions_by_message[message.id].length }}</ui-button>
+        </div>
       </div>
     </div>
+    <!-- https://developer.mozilla.org/en-US/docs/Web/API/Intersection_Observer_API -->
 
     <form @submit.prevent="send">
-      <textarea v-model="new_message"/>
-      <ui-button icon="send" raised @click="send">Send</ui-button>
+      <table style="width: 100%">
+      <tr><td width="65%">
+        <ui-textfield outlined input-type="textarea" v-model="new_message"
+          rows="3"
+          id="new_message" />
+      </td>
+      <td>
+        <ui-button icon="send" raised @click="send">Send</ui-button>
+        <ui-menu-anchor id="send_options_anchor">
+          <ui-button id="send_options" raised
+            @click="display_message_options = true"
+            ><ui-icon size="18">more_vert</ui-icon></ui-button>
+
+          <ui-menu v-model="display_message_options"
+              @selected="handle_message_options">
+            <ui-menuitem value="proposal">
+              <ui-menuitem-text
+                >Make a proposal with this message</ui-menuitem-text>
+            </ui-menuitem>
+          </ui-menu>
+        </ui-menu-anchor>
+        <div v-if="submitting_proposal">
+          <ui-select v-model="proposal_type" :options="proposal_types"
+              defaultLabel="(None selected)"
+            >Type of proposal</ui-select>
+        </div>
+      </td></tr>
+      </table>
     </form>
   </div>
 </template>
 
 <script>
 const request = require('superagent');
+const { fromJS } = require('immutable');
+
+const { HOST } = require('../constants');
+
+function fetch_reactions(component, after_message_refresh = true) {
+  request
+    .get(`${HOST}${component.watershed_ref}/reactions`)
+    .withCredentials()
+    .accept('json')
+    .end(function (error, response) {
+      if (error === null || error === undefined) {
+        component.reactions_by_message = response.body.reduce(
+          function (accumulator, current) {
+            if (accumulator[current.message_id] === undefined) {
+              accumulator[current.message_id] = [];
+            }
+            accumulator[current.message_id].push(current);
+            return accumulator;
+          }, {});
+        if (after_message_refresh) {
+          component.$nextTick(function () {
+            document.getElementById('last_message').scrollIntoView();
+          })
+        }
+      }
+    });
+}
 
 module.exports = {
   name: 'Discussion',
   props: {
-    watershed_id: String,
-    watershed_name: String
+    watershed_ref: String
+    // watershed_name: String
   },
+  emits: ['joined-watershed'],
   data() {
     return {
+      watershed_name: '',
+
       new_message: '',
       reply_target_id: undefined,
       branch_members: undefined,
+      branch_members_L: undefined,
       messages_page: undefined,
       nr_messages: undefined,
       progression: undefined,
+      reactions_by_message: undefined,
+
+      display_message_options: false,
+
+      submitting_proposal: false,
+      proposal_type: undefined,
+      proposal_types: [
+        {
+          label: 'Representative',
+          value: 'representative'
+        },
+        {
+          label: 'Summary',
+          value: 'summary'
+        }
+      ],
+      proposal_input: ''
     };
   },
   methods: {
@@ -47,27 +146,31 @@ module.exports = {
 
       function refresh_messages() {
         request
-          .get(`http://localhost:3000/api/watersheds/${
-            component.watershed_id}/messages`)
+          .get(`${HOST}${component.watershed_ref}/messages`)
           .withCredentials()
           .accept('json')
           .end(function (error, response) {
             if (error === null || error === undefined) {
               component.messages_page = response.body;
               component.new_message = '';
-              component.$nextTick(function () {
-                document.getElementById('last_message').scrollIntoView();
-              })
+              component.submitting_proposal = false;
+              component.proposal_type = undefined;
+              fetch_reactions(component);
             }
           });
       }
 
+      const message_details = { content: component.new_message };
+      if (component.submitting_proposal
+          && component.proposal_type !== undefined) {
+        message_details.proposal_type = component.proposal_type;
+      }
+
       request
-        .post(`http://localhost:3000/api/watersheds/${
-          component.watershed_id}/messages`)
+        .post(`${HOST}${component.watershed_ref}/messages`)
         .withCredentials()
         .accept('json')
-        .send({ content: component.new_message })
+        .send(message_details)
         .end(function (error, response) {
           if (error === null || error === undefined) {
             // May want to "conditionally" append the new message to the
@@ -76,19 +179,44 @@ module.exports = {
             refresh_messages();
           }
         });
+    },
+    react(message_id, intent) {
+      const component = this;
+
+      request
+        .post(`${HOST}${component.watershed_ref}/messages/${
+          message_id}/reactions`)
+        .withCredentials()
+        .accept('json')
+        .send({ intent })
+        .end(function (error, response) {
+          if (error === null || error === undefined) {
+            // May want to "conditionally" append the new message to the
+            // messages list with some different styling to indicate the
+            // message is sending, like Discord does.
+            fetch_reactions(component, false);
+          }
+        });
+    },
+    handle_message_options(data) {
+      if (data.value === 'proposal') {
+        this.submitting_proposal = !this.submitting_proposal;
+      }
     }
   },
   watch: {
-    'watershed_id': {
-      handler(next_id, previous_id) {
+    'watershed_ref': {
+      handler(next_ref, previous_ref) {
         const component = this;
         request
-          .post(`http://localhost:3000/api/watersheds/${next_id}`)
+          .post(`${HOST}${next_ref}`)
           .withCredentials()
           .accept('json')
           .end(function (error, response) {
             if (error === null || error === undefined) {
-              console.log('watching:', response);
+              // console.log('watching:', response);
+              component.branch_members_L = fromJS(
+                response.body.branch_members);
               component.branch_members = response.body.branch_members.reduce(
                 function (dict, member_details) {
                   dict[member_details.user_id] = member_details;
@@ -97,9 +225,8 @@ module.exports = {
               component.messages_page = response.body.messages_page;
               component.nr_messages = response.body.nr_messages;
               component.progression = response.body.progression;
-              component.$nextTick(function () {
-                document.getElementById('last_message').scrollIntoView();
-              })
+              component.watershed_name = response.body.watershed_details.name;
+              fetch_reactions(component);
             }
           });
 
@@ -121,6 +248,78 @@ h3 {
 div#messages {
   height: 355px;
   overflow-y: scroll;
+  background-color: #def;
+}
+
+div.message {
+  text-align: left;
+  margin: 0.2em;
+  padding: 0.3em;
+  background-color: #cdf;
+}
+
+div.message_info span.author {
+  font-weight: bold;
+}
+
+div.message_info span.date {
+  font-size: smaller;
+  margin-left: 0.5em;
+  color: #666;
+}
+
+div.message div.content {
+  margin-top: 0.25em;
+}
+
+#new_message {
+  width: 100%;
+}
+
+#send_options_anchor {
+  display: inline-block;
+}
+
+#send_options {
+  min-width: 1.5em;
+  margin: 0.1em;
+}
+
+div.message .reaction {
+  visibility: hidden;
+}
+
+div.message:hover .reaction {
+  visibility: visible;
+}
+
+.reaction {
+  float: right;
+  min-width: 20px;
+}
+
+.reactions {
+  background-color: #ffee92;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+div.proposal_info {
+  background-color: #ffee92;
+  text-align: center;
+  padding: 0.2em;
+  margin-bottom: 0.5em;
+}
+
+.reactions * {
+  min-width: 20px;
+  min-height: 20px;
+}
+
+td {
+  vertical-align: top;
+  text-align: left;
 }
 
 ul {

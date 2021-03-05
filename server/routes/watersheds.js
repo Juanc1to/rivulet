@@ -6,7 +6,7 @@ const router = express.Router();
 
 /* GET home page. */
 router.use(function (req, res, next) {
-  console.log('session:', req.session);
+  // console.log('session:', req.session);
   if (req.session.user_id === undefined) {
     res.sendStatus(401);
   } else {
@@ -39,13 +39,16 @@ router.post('/watersheds', function (req, res) {
   const id = watersheds.watershed(db, req.body);
   const list = watersheds.browse(db, { id });
   if (list.size === 0) {
-    res.sendStatus(500);
+    return res.sendStatus(500);
   }
   let details = list.get(0);
+  const api_ref = `${req.originalUrl}/${details.get('id')}`;
   details = details.filterNot(function (value, key) {
     return key === 'id';
-  })
-  .set('api_ref', `${req.originalUrl}/${details.get('id')}`);
+  }).set('api_ref', api_ref);
+
+  req.session.last_watershed = { api_ref, name: details.get('name') };
+
   if (req.accepts('html')) {
     let redirect_url = req.get('Referer');
     if (redirect_url === undefined) {
@@ -59,10 +62,16 @@ router.post('/watersheds', function (req, res) {
 
 router.post('/watersheds/:id', function (req, res) {
   let summary = watersheds.summary(req.app.get('db'), req.session.user_id,
-                                   req.params.id);
-  summary = summary.filterNot(function (value, key) {
+    req.params.id).set('messages_api_ref', `${req.originalUrl}/messages`);
+  /*summary = summary.filterNot(function (value, key) {
     return key === 'id';
-  }).set('messages_api_ref', `${req.originalUrl}/messages`);
+  }).set('messages_api_ref', `${req.originalUrl}/messages`);*/
+
+  req.session.last_watershed = {
+    api_ref: req.originalUrl,
+    name: summary.getIn(['watershed_details', 'name'])
+  };
+
   res.send(summary.toJS());
 });
 
@@ -106,6 +115,13 @@ router.get('/watersheds/:id/messages/:message_id/reactions',
            function (req, res) {
   const reactions_list = watersheds.reactions(req.app.get('db'),
                                               req.params.message_id);
+  res.send(reactions_list.toJS());
+});
+
+router.get('/watersheds/:id/reactions',
+           function (req, res) {
+  const reactions_list = watersheds.branch_reactions(req.app.get('db'),
+    req.session.user_id, req.params.id);
   res.send(reactions_list.toJS());
 });
 

@@ -6,7 +6,7 @@ const logger = require('morgan');
 const crypto = require('crypto');
 const cors = require('cors');
 
-const { configure: configureDatabase } = require('./db');
+const { configure: configureDatabase, dbstore } = require('./db');
 const time = require('./util/time');
 
 const indexRouter = require('./routes/index');
@@ -45,6 +45,7 @@ const sessionSecret = (process.env.SESSION_SECRET !== undefined ?
                        crypto.randomBytes(64).toString());
 // TODO: Set up (various) db-backed session stores...
 app.use(session({
+  store: dbstore(session),
   secret: sessionSecret,
   resave: false,
   saveUninitialized: false,

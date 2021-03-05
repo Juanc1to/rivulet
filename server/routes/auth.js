@@ -27,29 +27,31 @@ router.post('/', function (req, res) {
 /* Retrieve the user's session information, if the user has established a
  * connection to the space.
  */
-/*router.get('/anonymous', function (req, res) {
+router.get('/anonymous', function (req, res) {
   if (req.session.user_id === undefined) {
     res.redirect(303, '/');
   } else {
     res.send({
       user_id: req.session.user_id,
-      anonymous_token: req.session.anonymous_token
+      anonymous_token: req.session.anonymous_token,
+      last_watershed: req.session.last_watershed
     });
   }
-});*/
+});
 
 router.post('/anonymous', function (req, res) {
   if (req.session.user_id !== undefined) {
     res.sendStatus(422);
-  }
-  const db = req.app.get('db');
-  const { user_id, anonymous_token } = users.anonymous(db);
-  req.session.user_id = user_id;
-  req.session.anonymous_token = anonymous_token;
-  if (req.accepts('html')) {
-    res.redirect(303, '/');
   } else {
-    res.send({ anonymous_token, user_id });
+    const db = req.app.get('db');
+    const { user_id, anonymous_token } = users.anonymous(db);
+    req.session.user_id = user_id;
+    req.session.anonymous_token = anonymous_token;
+    if (req.accepts('html')) {
+      res.redirect(303, '/');
+    } else {
+      res.send({ anonymous_token, user_id });
+    }
   }
 });
 
@@ -70,7 +72,8 @@ router.get('/anonymous/:token', function (req, res) {
       user_id: req.session.user_id,
       anonymous_token: req.params.token,
       name: user_details.name,
-      email: user_details.email
+      email: user_details.email,
+      last_watershed: req.session.last_watershed
     });
   }
 });
