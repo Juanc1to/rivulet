@@ -12,7 +12,7 @@ function anonymous(db) {
 }
 
 function update(db, details) {
-  /*if (details.id === undefined) {
+  if (details.id === undefined) {
     throw Error('Update requires a user id.');
   }
   if (details.name === undefined) {
@@ -20,7 +20,7 @@ function update(db, details) {
   }
   if (details.email === undefined) {
     details.email = null;
-  }*/
+  }
   const update_query = db.prepare(`
     update users set name = $name, email = $email,
       updated = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')

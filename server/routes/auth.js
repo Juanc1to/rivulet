@@ -41,17 +41,16 @@ router.get('/anonymous', function (req, res) {
 
 router.post('/anonymous', function (req, res) {
   if (req.session.user_id !== undefined) {
-    res.sendStatus(422);
+    return res.sendStatus(422);
+  }
+  const db = req.app.get('db');
+  const { user_id, anonymous_token } = users.anonymous(db);
+  req.session.user_id = user_id;
+  req.session.anonymous_token = anonymous_token;
+  if (req.accepts('html')) {
+    res.redirect(303, '/');
   } else {
-    const db = req.app.get('db');
-    const { user_id, anonymous_token } = users.anonymous(db);
-    req.session.user_id = user_id;
-    req.session.anonymous_token = anonymous_token;
-    if (req.accepts('html')) {
-      res.redirect(303, '/');
-    } else {
-      res.send({ anonymous_token, user_id });
-    }
+    res.send({ anonymous_token, user_id });
   }
 });
 
@@ -60,13 +59,13 @@ router.get('/anonymous/:token', function (req, res) {
   const user_details = users.from_anonymous_token(db, req.params.token);
 
   if (user_details === undefined) {
-    res.sendStatus(400);
+    return res.sendStatus(400);
   }
   req.session.user_id = user_details.id;
   req.session.anonymous_token = req.params.token;
   //console.log(req.session);
   if (req.accepts('html')) {
-    res.redirect(303, '/');
+    res.redirect(303, '/client/');
   } else {
     res.send({
       user_id: req.session.user_id,
@@ -79,8 +78,7 @@ router.get('/anonymous/:token', function (req, res) {
 });
 
 router.get('/forget', function (req, res) {
-  req.session.user_id = undefined;
-  req.session.anonymous_token = undefined;
+  req.session = {};
 
   if (req.accepts('html')) {
     res.redirect(303, '/');
@@ -90,8 +88,7 @@ router.get('/forget', function (req, res) {
 });
 
 router.post('/forget', function (req, res) {
-  req.session.user_id = undefined;
-  req.session.anonymous_token = undefined;
+  req.session = {};
 
   if (req.accepts('html')) {
     res.redirect(303, '/');

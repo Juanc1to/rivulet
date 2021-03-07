@@ -16,7 +16,8 @@
     <ui-grid>
       <ui-grid-cell columns="8">
         <Discussion :watershed_ref="focused_watershed_ref"
-                    :watershed_name="focused_watershed_name"/>
+                    :watershed_name="focused_watershed_name"
+                    :user_id="user_id" />
       </ui-grid-cell>
       <ui-grid-cell>
         <Watersheds v-if="user_id !== undefined"
@@ -79,8 +80,14 @@ module.exports = {
     };
   },
   methods: {
-    update_account() {
+    update_account(do_update) {
       const component = this;
+      if (do_update === false) {
+        component.account_name = '';
+        component.account_email = '';
+        return;
+      }
+
       request
         .post(`${HOST}/account/`)
         .withCredentials()
@@ -102,8 +109,7 @@ module.exports = {
   created: function () {
     const component = this;
     request
-      //.get(`${HOST}/account/anonymous/4020e36f-7246-4657-aa1b-dff24f9a0484`)
-      .get(`${HOST}/account/anonymous/4020e36f-7246-4657-aa1b-dff24f9a0484`)
+      .get(`${HOST}/account/anonymous`)
       .withCredentials()
       .accept('json')
       .end(function (error, result) {

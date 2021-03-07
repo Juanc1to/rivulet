@@ -7,7 +7,7 @@
     <p>If you have not connected to this space before, you can establish a
     session in order to add content:</p>
 
-    <form method="post" action="/auth/anonymous">
+    <form method="post" action="/account/anonymous">
       <button type="submit">New session</button>
     </form>
 

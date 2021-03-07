@@ -5,9 +5,13 @@
     <p>With:
       <span v-for="(member, index) in branch_members_L"
             :key="index">
-        <span :class="{ anonymous: member.get('name') === null }"
-          >{{ member.get('name') === null
+        <span :class="{
+          anonymous: member.get('name') === null,
+          self_name: member.get('user_id') === user_id
+        }">{{ member.get('name') === null
               ? 'Anon' : member.get('name') }}</span>
+        <span v-if="member.get('user_id') === user_id"
+          class="self_pronoun"> (you)</span>
         <span v-if="index < branch_members_L.size - 1">, </span>
       </span>
     </p>
@@ -106,7 +110,8 @@ function fetch_reactions(component, after_message_refresh = true) {
 module.exports = {
   name: 'Discussion',
   props: {
-    watershed_ref: String
+    watershed_ref: String,
+    user_id: Number
     // watershed_name: String
   },
   emits: ['joined-watershed'],
@@ -243,6 +248,10 @@ module.exports = {
 <style scoped>
 h3 {
   margin: 40px 0 0;
+}
+
+span.self_pronoun {
+  font-style: italic;
 }
 
 div#messages {
