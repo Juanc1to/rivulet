@@ -50,7 +50,7 @@ function browse(db, options = {}) {
   return db.transaction(browse_Q)(db, options);
 }
 
-function joinQueries(db, user_id, watershed_id) {
+function join_Q(db, user_id, watershed_id) {
   user_id = Number.parseInt(user_id);
   watershed_id = Number.parseInt(watershed_id);
   const params = { user_id, watershed_id };
@@ -111,14 +111,21 @@ function joinQueries(db, user_id, watershed_id) {
    */
   const open_branches_rows = db.prepare(`
     select branches.id from branches
+      inner join participation on participation.branch_id = branches.id
       inner join watersheds on watershed_id = watersheds.id
       where watershed_id = $watershed_id and head
             and progression = $progression
             and (
               select count(user_id) from participation
               where branch_id = branches.id and end_status is null
-            ) < watersheds.branch_size `)
-    .all({ watershed_id, progression: progression_rows[0].progression });
+            ) < watersheds.branch_size
+      group by branches.id having count(user_id)
+        filter (where user_id = $user_id and end_status is not null) = 0`)
+    .all({
+      user_id,
+      watershed_id,
+      progression: progression_rows[0].progression
+    });
 
   let target_branch_id;
   if (open_branches_rows.length === 0) {
@@ -161,7 +168,20 @@ function joinQueries(db, user_id, watershed_id) {
 }
 
 function join(db, user_id, watershed_id) {
-  return db.transaction(joinQueries)(db, user_id, watershed_id);
+  return db.transaction(join_Q)(db, user_id, watershed_id);
+}
+
+function leave_Q(db, user_id, watershed_id) {
+  const original_branch_id = join_Q(db, user_id, watershed_id);
+  const update_info = db.prepare(`
+    update participation set end_status = 'abandoned'
+      where user_id = $user_id and branch_id = $original_branch_id
+    `).run({ user_id, original_branch_id });
+  return update_info.changes;
+}
+
+function leave(db, user_id, watershed_id) {
+  return db.transaction(leave_Q)(db, user_id, watershed_id);
 }
 
 function watershed_count_Q(db, watershed_id) {
@@ -180,19 +200,20 @@ function messages_page_Q(db, branch_id) {
     .all({ branch_id }));
 }
 
-function summaryQueries(db, user_id, watershed_id) {
+function summary_Q(db, user_id, watershed_id) {
   const watershed_rows = fromJS(db.prepare(`
     select * from watersheds where id = $watershed_id`)
     .all({ watershed_id }));
   if (watershed_rows.size !== 1) {
     throw Error('Exactly 1 watershed not found');
   }
+  // TODO: This "join" should only be a lookup; perhaps I want to partition
+  // that function so I can do the two things separately?
   const branch_id = join(db, user_id, watershed_id);
   const branch_members = fromJS(db.prepare(`
-    select user_id, name from participation left join users
+    select user_id, name, end_status from participation left join users
       on user_id = users.id
-      where branch_id = $branch_id
-      and end_status is null`).all({ branch_id }));
+      where branch_id = $branch_id`).all({ branch_id }));
   const nr_watershed_participants = watershed_count_Q(db, watershed_id);
   const nr_messages = db.prepare(`
     select count(*) from messages where branch_id = $branch_id`)
@@ -210,7 +231,7 @@ function summaryQueries(db, user_id, watershed_id) {
 }
 
 function summary(db, user_id, watershed_id) {
-  return db.transaction(summaryQueries)(db, user_id, watershed_id);
+  return db.transaction(summary_Q)(db, user_id, watershed_id);
 }
 
 function message_Q(db, details) {
@@ -226,6 +247,8 @@ function message_Q(db, details) {
   if (proposal_type === 'representative' && proposal_input === undefined) {
     proposal_input = String(author_id);
   }
+  // TODO: This "join" should only be a lookup; perhaps I want to partition
+  // that function so I can do the two things separately?
   const branch_id = join(db, author_id, watershed_id);
   const new_message_info = db.prepare(`
     insert into messages (author_id, content, submitted, branch_id,
@@ -250,7 +273,7 @@ function reactions(db, message_id) {
 }
 
 function branch_reactions_Q(db, user_id, watershed_id) {
-  const branch_id = joinQueries(db, user_id, watershed_id);
+  const branch_id = join_Q(db, user_id, watershed_id);
   return fromJS(db.prepare(`
     select reactions.* from reactions inner join messages
       on message_id = messages.id where branch_id = $branch_id`)
@@ -330,5 +353,6 @@ function reaction(db, details) {
 }
 
 module.exports = Object.freeze({
-  watershed, browse, join, summary, message, reactions, branch_reactions,
-  reaction });
+  watershed, browse, join, leave, summary, message, reactions,
+  branch_reactions, reaction
+});

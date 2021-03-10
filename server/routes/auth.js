@@ -77,24 +77,21 @@ router.get('/anonymous/:token', function (req, res) {
   }
 });
 
-router.get('/forget', function (req, res) {
-  req.session = {};
+function forget(req, res) {
+  req.session.regenerate(function (err) {
+    if (err === undefined || err === null) {
+      if (req.accepts('html')) {
+        res.redirect(303, '/');
+      } else {
+        res.sendStatus(200);
+      }
+    }
+    // Do something if there is an error?
+  });
+}
 
-  if (req.accepts('html')) {
-    res.redirect(303, '/');
-  } else {
-    req.sendStatus(200);
-  }
-});
-
-router.post('/forget', function (req, res) {
-  req.session = {};
-
-  if (req.accepts('html')) {
-    res.redirect(303, '/');
-  } else {
-    res.sendStatus(200);
-  }
-});
+router.route('/forget')
+  .get(forget)
+  .post(forget);
 
 module.exports = router;

@@ -2,7 +2,7 @@
   <div>
     <h1>Watersheds in this space:</h1>
     <div v-for="watershed in watersheds_list" :key="watershed.api_ref"
-         @click="$emit('joined-watershed', {
+         @click="$emit('changed-watershed', {
            api_ref: watershed.api_ref,
            name: watershed.name,
          })"
@@ -29,7 +29,7 @@ module.exports = {
   props: {
     watershed_ref: String,
   },
-  emits: ['joined-watershed'],
+  emits: ['changed-watershed'],
   data() {
     return {
       watersheds_list: [],

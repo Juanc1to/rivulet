@@ -56,23 +56,41 @@ router.post('/watersheds', function (req, res) {
     }
     res.redirect(303, redirect_url);
   } else {
+    // Maybe this should actually respond with a 200 or 204 code?
     res.status(201).send(details.toJS());
   }
 });
 
+/* Within the context of a user session, POSTing to a watershed's URL requests
+ * a change of that user's participation in the watershed.  What sort of
+ * participation change is indicated by the body of the request.
+ *
+ * ... or it will be once I have modified the test cases to account for these
+ * requests requiring a body. */
 router.post('/watersheds/:id', function (req, res) {
-  let summary = watersheds.summary(req.app.get('db'), req.session.user_id,
-    req.params.id).set('messages_api_ref', `${req.originalUrl}/messages`);
-  /*summary = summary.filterNot(function (value, key) {
-    return key === 'id';
-  }).set('messages_api_ref', `${req.originalUrl}/messages`);*/
+  if (req.body.action === 'leave' || req.body.action === 'different branch') {
+    watersheds.leave(req.app.get('db'), req.session.user_id, req.params.id);
 
-  req.session.last_watershed = {
-    api_ref: req.originalUrl,
-    name: summary.getIn(['watershed_details', 'name'])
-  };
+    if (req.body.action === 'leave') {
+      req.session.last_watershed = undefined;
+      return res.sendStatus(200);
+    }
+  }
+  if (req.body.action === 'join' || req.body.action === 'different branch') {
+    let summary = watersheds.summary(req.app.get('db'), req.session.user_id,
+      req.params.id).set('messages_api_ref', `${req.originalUrl}/messages`);
+    /*summary = summary.filterNot(function (value, key) {
+      return key === 'id';
+    }).set('messages_api_ref', `${req.originalUrl}/messages`);*/
 
-  res.send(summary.toJS());
+    req.session.last_watershed = {
+      api_ref: req.originalUrl,
+      name: summary.getIn(['watershed_details', 'name'])
+    };
+
+    return res.send(summary.toJS());
+  }
+  res.sendStatus(422);
 });
 
 router.post('/watersheds/:id/messages', function (req, res) {

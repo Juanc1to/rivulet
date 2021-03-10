@@ -17,12 +17,13 @@
       <ui-grid-cell columns="8">
         <Discussion :watershed_ref="focused_watershed_ref"
                     :watershed_name="focused_watershed_name"
-                    :user_id="user_id" />
+                    :user_id="user_id"
+                    @changed-watershed="note_changed_watershed($event)" />
       </ui-grid-cell>
       <ui-grid-cell>
         <Watersheds v-if="user_id !== undefined"
                     :watershed_ref="focused_watershed_ref"
-                    @joined-watershed="note_joined_watershed($event)"/>
+                    @changed-watershed="note_changed_watershed($event)" />
       </ui-grid-cell>
     </ui-grid>
 
@@ -101,7 +102,7 @@ module.exports = {
           }
         });
     },
-    note_joined_watershed(details) {
+    note_changed_watershed(details) {
       this.focused_watershed_ref = details.api_ref;
       this.focused_watershed_name = details.name;
     }
@@ -122,7 +123,7 @@ module.exports = {
           // on a cookie, I guess (and modified by selecting a watershed from
           // the list).
           if (result.body.last_watershed !== undefined) {
-            component.note_joined_watershed(result.body.last_watershed);
+            component.note_changed_watershed(result.body.last_watershed);
           }
           /* component.focused_watershed_ref = "/api/watersheds/1";
           component.focused_watershed_name = "@@Placeholder@@"; */

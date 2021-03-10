@@ -2,17 +2,32 @@
   <div>
     <h1>Your branch discussion in {{ watershed_name }}</h1>
 
+    <!--ui-button class="discussion_option"
+      ><ui-icon size="18">switch_right</ui-icon></ui-button>
+    <ui-button class="discussion_option"
+      ><ui-icon size="18">transfer_within_a_station</ui-icon></ui-button-->
+    <ui-button v-if="branch_members_L !== undefined
+                     && branch_members_L.size > 1"
+               @click="change_participation('different branch')"
+               title="Move to a different branch" class="discussion_option"
+      ><ui-icon size="18">swap_horiz</ui-icon></ui-button>
+    <ui-button @click="change_participation('leave')"
+               title="Leave this watershed" class="discussion_option"
+      ><ui-icon size="18">exit_to_app</ui-icon></ui-button>
+
     <p>With:
       <span v-for="(member, index) in branch_members_L"
             :key="index">
-        <span :class="{
-          anonymous: member.get('name') === null,
-          self_name: member.get('user_id') === user_id
-        }">{{ member.get('name') === null
-              ? 'Anon' : member.get('name') }}</span>
-        <span v-if="member.get('user_id') === user_id"
-          class="self_pronoun"> (you)</span>
-        <span v-if="index < branch_members_L.size - 1">, </span>
+        <span v-if="member.get('end_status') === null">
+          <span :class="{
+            anonymous: member.get('name') === null,
+            self_name: member.get('user_id') === user_id
+          }">{{ member.get('name') === null
+                ? 'Anon' : member.get('name') }}</span>
+          <span v-if="member.get('user_id') === user_id"
+            class="self_pronoun"> (you)</span>
+          <span v-if="index < branch_members_L.size - 1">, </span>
+        </span>
       </span>
     </p>
 
@@ -114,7 +129,7 @@ module.exports = {
     user_id: Number
     // watershed_name: String
   },
-  emits: ['joined-watershed'],
+  emits: ['changed-watershed'],
   data() {
     return {
       watershed_name: '',
@@ -203,6 +218,51 @@ module.exports = {
           }
         });
     },
+    load_branch(response) {
+      console.log('watching:', response);
+      if (response === undefined) {
+        this.branch_members_L = undefined;
+        this.branch_members = undefined;
+        this.messages_page = undefined;
+        this.nr_messages = undefined;
+        this.progression = undefined;
+        this.watershed_name = undefined;
+        return;
+      }
+      this.branch_members_L = fromJS(
+        response.body.branch_members);
+      this.branch_members = response.body.branch_members.reduce(
+        function (dict, member_details) {
+          dict[member_details.user_id] = member_details;
+          return dict;
+        }, {});
+      this.messages_page = response.body.messages_page;
+      this.nr_messages = response.body.nr_messages;
+      this.progression = response.body.progression;
+      this.watershed_name = response.body.watershed_details.name;
+      fetch_reactions(this);
+    },
+    change_participation(action) {
+      const component = this;
+
+      request
+        .post(`${HOST}${component.watershed_ref}`)
+        .withCredentials()
+        .accept('json')
+        .send({ action })
+        .end(function (error, response) {
+          if (error === null || error === undefined) {
+            if (action === 'leave') {
+              component.$emit('changed-watershed', {
+                api_ref: '',
+                name: '',
+              });
+            } else if (action === 'different branch') {
+              component.load_branch(response);
+            }
+          }
+        });
+    },
     handle_message_options(data) {
       if (data.value === 'proposal') {
         this.submitting_proposal = !this.submitting_proposal;
@@ -213,25 +273,18 @@ module.exports = {
     'watershed_ref': {
       handler(next_ref, previous_ref) {
         const component = this;
+        if (next_ref === '' || next_ref === undefined) {
+          component.load_branch(undefined);
+        }
+
         request
           .post(`${HOST}${next_ref}`)
           .withCredentials()
+          .send({ action: 'join' })
           .accept('json')
           .end(function (error, response) {
             if (error === null || error === undefined) {
-              // console.log('watching:', response);
-              component.branch_members_L = fromJS(
-                response.body.branch_members);
-              component.branch_members = response.body.branch_members.reduce(
-                function (dict, member_details) {
-                  dict[member_details.user_id] = member_details;
-                  return dict;
-                }, {});
-              component.messages_page = response.body.messages_page;
-              component.nr_messages = response.body.nr_messages;
-              component.progression = response.body.progression;
-              component.watershed_name = response.body.watershed_details.name;
-              fetch_reactions(component);
+              component.load_branch(response);
             }
           });
 
@@ -250,6 +303,11 @@ h3 {
   margin: 40px 0 0;
 }
 
+.discussion_option {
+  float: right;
+  min-width: 20px;
+}
+
 span.self_pronoun {
   font-style: italic;
 }
@@ -258,6 +316,7 @@ div#messages {
   height: 355px;
   overflow-y: scroll;
   background-color: #def;
+  clear: both;
 }
 
 div.message {

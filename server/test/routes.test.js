@@ -224,6 +224,7 @@ describe('At /api/watersheds, a user', function () {
     function join(watershed_url) {
       agent
         .post(watershed_url)
+        .send({ action: 'join' })
         .expect(200)
         .end(function (error, response) {
           if (error) {
@@ -231,6 +232,11 @@ describe('At /api/watersheds, a user', function () {
           } else {
             expect(response.body).toEqual({
               branch_members: expect.anything(),
+              watershed_details: {
+                ...watershed_details,
+                id: expect.anything(),
+                updated: expect.anything()
+              },
               nr_watershed_participants: 1,
               nr_messages: 0,
               messages_page: [],
@@ -261,6 +267,7 @@ describe('At /api/watersheds, a user', function () {
       function join(watershed_url) {
         agent
           .post(watershed_url)
+          .send({ action: 'join' })
           .expect(200)
           .end(function (error, response) {
             if (error) {
@@ -300,6 +307,36 @@ describe('At /api/watersheds, a user', function () {
               reactions_api_ref: expect.stringContaining(messages_url)
             });
             done();
+          }
+        });
+    });
+
+    it('can leave the current branch and arrive on a different branch',
+       function (done) {
+      function abandon_branch() {
+        agent
+          .post(watershed_url)
+          .send({ action: 'different branch' })
+          .expect(200)
+          .end(function (error, response) {
+            if (error) {
+              done(error);
+            } else {
+              expect(response.body.nr_messages).toBe(0);
+              done();
+            }
+          });
+      }
+
+      agent
+        .post(messages_url)
+        .send(message)
+        .expect(201)
+        .end(function (error, response) {
+          if (error) {
+            done(error);
+          } else {
+            abandon_branch();
           }
         });
     });
@@ -401,6 +438,7 @@ describe('Together in a branch, a set of users', function () {
       } else {
         user_agent_list.getIn([user_nr, 'agent'])
           .post(watershed_url)
+          .send({ action: 'join' })
           .end(function (error, response) {
             if (error) {
               done(error);
@@ -457,15 +495,24 @@ describe('Together in a branch, a set of users', function () {
     function last_join() {
       user_agents.last().get('agent')
         .post(watershed_url)
+        .send({ action: 'join' })
         .expect(200)
         .end(function (error, response) {
           if (error) {
             done(error);
           } else {
             expect(response.body.progression).toBe(1);
-            expect(response.body.branch_members).toStrictEqual(
-              [{ name: null, user_id: user_agents.first().get('user_id') },
-               { name: null, user_id: user_agents.last().get('user_id') }]);
+            expect(response.body.branch_members).toStrictEqual([
+            {
+              name: null,
+              user_id: user_agents.first().get('user_id'),
+              end_status: null
+            },
+            {
+              name: null,
+              user_id: user_agents.last().get('user_id'),
+              end_status: null
+            }]);
             done();
           }
         });
@@ -474,14 +521,18 @@ describe('Together in a branch, a set of users', function () {
     function first_join() {
       user_agents.first().get('agent')
         .post(watershed_url)
+        .send({ action: 'join' })
         .expect(200)
         .end(function (error, response) {
           if (error) {
             done(error);
           } else {
             expect(response.body.progression).toBe(1);
-            expect(response.body.branch_members).toStrictEqual(
-              [{ name: null, user_id: user_agents.first().get('user_id') }]);
+            expect(response.body.branch_members).toStrictEqual([{
+              name: null,
+              user_id: user_agents.first().get('user_id'),
+              end_status: null,
+            }]);
             last_join();
           }
         });

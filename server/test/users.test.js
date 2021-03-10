@@ -18,6 +18,8 @@ afterEach(util.delete_from_each_table_factory(db));
 /* Several tests function by adding enough users to "overflow" a new branch
  * in a new watershed, in order to check behavior "inside" and "outside"
  * that branch.
+ *
+ * That said, we're not actually using this function at the moment...
  */
 function overflowList(branch_size = 3) {
   const watershed_id = watersheds.watershed(db, { branch_size });
@@ -151,6 +153,29 @@ describe('A user', function () {
       return branch_id;
     }).toList();
     expect(assigned.first()).not.toBe(assigned.last());
+  }));
+
+  it('will be assigned a new branch when they leave their current branch',
+     db.transaction(function () {
+    const watershed_options = { branch_size: 3, name: 'n', description: 'd' };
+    const watershed_id = watersheds.watershed(db, watershed_options);
+    const user_id = users.anonymous(db).user_id;
+    const user2_id = users.anonymous(db).user_id;
+    const branch_id = watersheds.join(db, user_id, watershed_id);
+    watersheds.join(db, user2_id, watershed_id);
+    const nr_changes = watersheds.leave(db, user_id, watershed_id);
+    expect(nr_changes).toBe(1);
+
+    const details = watersheds.browse(db, { id: watershed_id });
+    expect(details.get(0).toJS()).toEqual({
+      ...watershed_options,
+      id: expect.anything(),
+      updated: expect.anything(),
+      nr_participants: 1,
+    });
+
+    const branch2_id = watersheds.join(db, user_id, watershed_id);
+    expect(branch_id).not.toBe(branch2_id);
   }));
 
   it('can send a message with scope restricted to their branch',
