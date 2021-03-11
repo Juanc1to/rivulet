@@ -20,31 +20,33 @@ function normalizePort(val) {
 }
 
 /**
- * Event listener for HTTP server "error" event
+ * Event listener factory for HTTP server "error" event
  */
-function onError(error) {
-  if (error.syscall !== 'listen') {
-    throw error;
-  }
+function onError_F(port) {
+  return function onError(error) {
+    if (error.syscall !== 'listen') {
+      throw error;
+    }
 
-  var bind = (typeof port === 'string'
-              ? 'Pipe ' + port
-              : 'Port ' + port);
+    var bind = (typeof port === 'string'
+                ? 'Pipe ' + port
+                : 'Port ' + port);
 
-  // Handle specific listen errors with friendly messages.
-  if (error.code === 'EACCES') {
-    console.error(bind + ' requires elevated privileges');
-    process.exit(1);
-  } else if (error.code === 'EADDRINUSE') {
-    console.error(bind + ' is already in use');
-    process.exit(1);
-  } else {
-    throw error;
-  }
+    // Handle specific listen errors with friendly messages.
+    if (error.code === 'EACCES') {
+      console.error(bind + ' requires elevated privileges');
+      process.exit(1);
+    } else if (error.code === 'EADDRINUSE') {
+      console.error(bind + ' is already in use');
+      process.exit(1);
+    } else {
+      throw error;
+    }
+  };
 }
 
 /**
- * Event listener for HTTP server "listening" event
+ * Event listener factory for HTTP server "listening" event
  */
 function onListening_F(server) {
   return function () {
@@ -57,5 +59,5 @@ function onListening_F(server) {
 }
 
 module.exports = Object.freeze({
-  normalizePort, onListening_F, onError
+  normalizePort, onListening_F, onError_F
 });

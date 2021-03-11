@@ -4,8 +4,13 @@ const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const logger = require('morgan');
 const crypto = require('crypto');
+const http = require('http');
+const ioServer = require('socket.io');
+const { fromJS, Map } = require('immutable');
+
 const cors = require('cors');
 
+const { normalizePort } = require('./util/express');
 const { configure: configureDatabase, dbstore } = require('./db');
 const time = require('./util/time');
 
@@ -41,11 +46,12 @@ app.set('db', configureDatabase(app));
 
 // We only use CORS for the hot-reloading development client.  TODO: set this
 // up so that we only use it when NODE_ENV===development.
-app.use(cors({
+const cors_config = {
   origin: 'http://localhost:8080',
   methods: ['GET', 'POST'],
   credentials: true
-}));
+}
+app.use(cors(cors_config));
 
 // Set up the logger.  TODO: Figure out how to use this.
 app.use(logger('dev'));
@@ -59,13 +65,45 @@ app.use(express.urlencoded({ extended: false }));
 const sessionSecret = (process.env.SESSION_SECRET !== undefined ?
                        process.env.SESSION_SECRET :
                        crypto.randomBytes(64).toString());
-app.use(session({
+const session_middleware = session({
   store: dbstore(session),
   secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: time.week_ms }
-}));
+});
+app.use(session_middleware);
+
+function immutable_sessions(req, res, next) {
+  if (req.session === undefined) {
+    req.session = { i7e: Map() };
+    return next();
+  }
+  if (req.session.i7e === undefined) {
+    req.session.i7e = Map();
+  } else {
+    req.session.i7e = fromJS(req.session.i7e);
+  }
+  next();
+}
+app.use(immutable_sessions);
+
+function load_socket_F(options) {
+  options = options === undefined ? Map() : fromJS(options);
+
+  return function load_socket(req, res, next) {
+    if (req.session.i7e.has('socket_id')) {
+      const namespace = options.get('namespace', '/');
+      const socket = req.app.get('io').of(namespace).sockets.get(
+        req.session.i7e.get('socket_id'));
+      if (socket !== undefined) {
+        res.locals.socket = socket;
+      }
+    }
+    next();
+  };
+}
+app.use(load_socket_F());
 
 // Set up our routes:
 app.use('/api', watershedsApiRouter);
@@ -75,4 +113,40 @@ app.use('/', indexRouter);
 // (SPA) for sending messages and navigating watersheds:
 app.use('/client', express.static(path.join(__dirname, '../client/dist/')));
 
-module.exports = app;
+/**
+ * Get port from environment and store in Express.
+ */
+const port = normalizePort(process.env.PORT || '3000');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+const server = http.createServer(app);
+
+// Set up socket.io message passing:
+const io = ioServer(server, {
+  cors: cors_config
+});
+app.set('io', io);
+
+function io_middleware_wrap(express_middleware) {
+  return function io_middleware(socket, next) {
+    return express_middleware(socket.request, {}, next);
+  };
+}
+
+io.use(io_middleware_wrap(session_middleware));
+io.use(io_middleware_wrap(immutable_sessions));
+
+io.on('connection', function (socket) {
+  const session = socket.request.session;
+  console.log('connection:', session.i7e.toJS(), socket.request.sessionID);
+  if (session.i7e.hasIn(['last_watershed', 'branch_id'])) {
+    socket.join(session.i7e.getIn(['last_watershed', 'branch_id']));
+  }
+  session.i7e = session.i7e.set('socket_id', socket.id);
+  session.save();
+});
+
+module.exports = { app, server, port };

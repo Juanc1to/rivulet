@@ -2,7 +2,7 @@
 const { Repeat, Map } = require('immutable');
 
 // model modules
-const app = require('../app');
+const { app } = require('../app');
 const users = require('../users');
 const watersheds = require('../watersheds');
 

@@ -43,7 +43,8 @@
           ><ui-icon size="18">plus_one</ui-icon></ui-button>
         <div class="message_info">
           <span class="author">{{
-            branch_members[message.author_id].name === null
+            branch_members[message.author_id] === undefined
+            || branch_members[message.author_id].name === null
             ? message.author_id
             : branch_members[message.author_id].name }}</span>
           <span class="date">{{ message.submitted.replace('T', ' ') }}</span>
@@ -126,7 +127,8 @@ module.exports = {
   name: 'Discussion',
   props: {
     watershed_ref: String,
-    user_id: Number
+    user_id: Number,
+    socket: Object
     // watershed_name: String
   },
   emits: ['changed-watershed'],
@@ -163,23 +165,6 @@ module.exports = {
   methods: {
     send(message) {
       const component = this;
-
-      function refresh_messages() {
-        request
-          .get(`${HOST}${component.watershed_ref}/messages`)
-          .withCredentials()
-          .accept('json')
-          .end(function (error, response) {
-            if (error === null || error === undefined) {
-              component.messages_page = response.body;
-              component.new_message = '';
-              component.submitting_proposal = false;
-              component.proposal_type = undefined;
-              fetch_reactions(component);
-            }
-          });
-      }
-
       const message_details = { content: component.new_message };
       if (component.submitting_proposal
           && component.proposal_type !== undefined) {
@@ -196,7 +181,23 @@ module.exports = {
             // May want to "conditionally" append the new message to the
             // messages list with some different styling to indicate the
             // message is sending, like Discord does.
-            refresh_messages();
+            component.refresh_messages();
+          }
+        });
+    },
+    refresh_messages() {
+      const component = this;
+      request
+        .get(`${HOST}${component.watershed_ref}/messages`)
+        .withCredentials()
+        .accept('json')
+        .end(function (error, response) {
+          if (error === null || error === undefined) {
+            component.messages_page = response.body;
+            component.new_message = '';
+            component.submitting_proposal = false;
+            component.proposal_type = undefined;
+            fetch_reactions(component);
           }
         });
     },
@@ -270,7 +271,7 @@ module.exports = {
     }
   },
   watch: {
-    'watershed_ref': {
+    watershed_ref: {
       handler(next_ref, previous_ref) {
         const component = this;
         if (next_ref === '' || next_ref === undefined) {
@@ -292,6 +293,18 @@ module.exports = {
         // id with an outstanding message, if there is one, so we can stash it to
         // be recalled later, to allow users to switch between watersheds easily.
       }
+    },
+    socket: {
+      handler(next_socket, previous_socket) {
+        console.log('socket handler', next_socket, previous_socket);
+        const component = this;
+        if (next_socket !== undefined) {
+          next_socket.on('new message', function (message) {
+            component.refresh_messages();
+          });
+        }
+      },
+      immediate: true
     }
   }
 };

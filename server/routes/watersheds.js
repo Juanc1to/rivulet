@@ -1,4 +1,5 @@
 const express = require('express');
+const { Map } = require('immutable');
 
 const watersheds = require('../watersheds');
 
@@ -7,7 +8,7 @@ const router = express.Router();
 /* GET home page. */
 router.use(function (req, res, next) {
   // console.log('session:', req.session);
-  if (req.session.user_id === undefined) {
+  if (!req.session.i7e.has('user_id')) {
     res.sendStatus(401);
   } else {
     next();
@@ -47,7 +48,10 @@ router.post('/watersheds', function (req, res) {
     return key === 'id';
   }).set('api_ref', api_ref);
 
-  req.session.last_watershed = { api_ref, name: details.get('name') };
+  req.session.i7e = req.session.i7e.set('last_watershed', {
+    api_ref,
+    name: details.get('name')
+  });
 
   if (req.accepts('html')) {
     let redirect_url = req.get('Referer');
@@ -61,32 +65,54 @@ router.post('/watersheds', function (req, res) {
   }
 });
 
-/* Within the context of a user session, POSTing to a watershed's URL requests
+/*
+ * Within the context of a user session, POSTing to a watershed's URL requests
  * a change of that user's participation in the watershed.  What sort of
  * participation change is indicated by the body of the request.
- *
- * ... or it will be once I have modified the test cases to account for these
- * requests requiring a body. */
+ */
 router.post('/watersheds/:id', function (req, res) {
+  console.log('session.i7e:', req.session.i7e.toJS(), req.sessionID);
+  const user_id = req.session.i7e.get('user_id');
+  const socket = res.locals.socket;
+  const last_branch_id = req.session.i7e.getIn(
+    ['last_watershed', 'branch_id']);
   if (req.body.action === 'leave' || req.body.action === 'different branch') {
-    watersheds.leave(req.app.get('db'), req.session.user_id, req.params.id);
+    watersheds.leave(req.app.get('db'), user_id, req.params.id);
+
+    if (socket !== undefined && last_branch_id !== undefined) {
+      socket.to(last_branch_id).emit('leaving', user_id);
+      socket.leave(last_branch_id);
+    }
 
     if (req.body.action === 'leave') {
-      req.session.last_watershed = undefined;
+      req.session.i7e = req.session.i7e.delete('last_watershed');
       return res.sendStatus(200);
     }
   }
   if (req.body.action === 'join' || req.body.action === 'different branch') {
-    let summary = watersheds.summary(req.app.get('db'), req.session.user_id,
+    let summary = watersheds.summary(req.app.get('db'), user_id,
       req.params.id).set('messages_api_ref', `${req.originalUrl}/messages`);
+
+    // TODO: distinguish between a "re-join" (maybe just call it a "return")
+    // and a new join of a watershed.  We only really want to announce joining
+    // when we're newly joining a watershed.
+    if (socket !== undefined) {
+      const next_branch_id = summary.get('branch_id');
+      socket.join(next_branch_id);
+      if (next_branch_id !== last_branch_id) {
+        socket.to(next_branch_id).emit('joining', user_id);
+      }
+    }
+
     /*summary = summary.filterNot(function (value, key) {
       return key === 'id';
     }).set('messages_api_ref', `${req.originalUrl}/messages`);*/
 
-    req.session.last_watershed = {
+    req.session.i7e = req.session.i7e.set('last_watershed', {
+      branch_id: summary.get('branch_id'),
       api_ref: req.originalUrl,
       name: summary.getIn(['watershed_details', 'name'])
-    };
+    });
 
     return res.send(summary.toJS());
   }
@@ -94,11 +120,18 @@ router.post('/watersheds/:id', function (req, res) {
 });
 
 router.post('/watersheds/:id/messages', function (req, res) {
-  const message_id = watersheds.message(req.app.get('db'), {
-    author_id: req.session.user_id,
+  const socket = res.locals.socket;
+  const branch_id = req.session.i7e.getIn(['last_watershed', 'branch_id']);
+
+  const details = {
+    author_id: req.session.i7e.get('user_id'),
     watershed_id: req.params.id,
     ...req.body
-  });
+  };
+  const message_id = watersheds.message(req.app.get('db'), details);
+  if (socket !== undefined && branch_id !== undefined) {
+    socket.to(branch_id).emit('new message', details);
+  }
   res.status(201).send({
     reactions_api_ref: `${req.originalUrl}/${message_id}/reactions`
   });
@@ -106,7 +139,7 @@ router.post('/watersheds/:id/messages', function (req, res) {
 
 router.get('/watersheds/:id/messages', function (req, res) {
   let messages_page = watersheds.summary(req.app.get('db'),
-    req.session.user_id, req.params.id).get('messages_page');
+    req.session.i7e.get('user_id'), req.params.id).get('messages_page');
   messages_page = messages_page.map(function (entry) {
     return entry.set('reactions_api_ref',
                      `${req.originalUrl}/${entry.get('id')}/reactions`);
@@ -118,7 +151,7 @@ router.post('/watersheds/:id/messages/:message_id/reactions',
             function (req, res) {
   try {
   const reaction_id = watersheds.reaction(req.app.get('db'), {
-    user_id: req.session.user_id,
+    user_id: req.session.i7e.get('user_id'),
     message_id: req.params.message_id,
     ...req.body
   });
@@ -139,7 +172,7 @@ router.get('/watersheds/:id/messages/:message_id/reactions',
 router.get('/watersheds/:id/reactions',
            function (req, res) {
   const reactions_list = watersheds.branch_reactions(req.app.get('db'),
-    req.session.user_id, req.params.id);
+    req.session.i7e.get('user_id'), req.params.id);
   res.send(reactions_list.toJS());
 });
 

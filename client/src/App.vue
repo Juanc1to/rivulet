@@ -18,6 +18,7 @@
         <Discussion :watershed_ref="focused_watershed_ref"
                     :watershed_name="focused_watershed_name"
                     :user_id="user_id"
+                    :socket="socket"
                     @changed-watershed="note_changed_watershed($event)" />
       </ui-grid-cell>
       <ui-grid-cell>
@@ -57,6 +58,8 @@
 <script>
 const request = require('superagent');
 
+const io = require('socket.io-client');
+
 const { HOST } = require('./constants');
 
 const Watersheds = require('./components/Watersheds.vue').default;
@@ -77,7 +80,9 @@ module.exports = {
 
       prompt_account_update: false,
       account_name: undefined,
-      account_email: undefined
+      account_email: undefined,
+
+      socket: undefined
     };
   },
   methods: {
@@ -114,7 +119,7 @@ module.exports = {
       .withCredentials()
       .accept('json')
       .end(function (error, result) {
-        if (error == null || error === undefined) {
+        if (error === null || error === undefined) {
           component.user_id = result.body.user_id;
           component.anonymous_token = result.body.anonymous_token;
           component.account_name = result.body.name;
@@ -127,6 +132,11 @@ module.exports = {
           }
           /* component.focused_watershed_ref = "/api/watersheds/1";
           component.focused_watershed_name = "@@Placeholder@@"; */
+          component.socket = io(`${HOST}/`, {
+            // This only matters for cross-site requests (which we only
+            // currently do during development):
+            withCredentials: true
+          });
         }
       });
   }

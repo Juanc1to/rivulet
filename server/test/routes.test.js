@@ -3,11 +3,17 @@ const request = require('supertest');
 const { Repeat, Map, Set } = require('immutable');
 
 // model modules
-const app = require('../app');
+const { app } = require('../app');
 
 // local utilities
 const { then_F } = require('./util/supertest');
 const util = require('./db/util');
+
+function log_errors(err, req, res, next) {
+  console.error(err.stack);
+  next(err);
+}
+app.use(log_errors);
 
 const db = app.get('db');
 
@@ -231,6 +237,7 @@ describe('At /api/watersheds, a user', function () {
             done(error);
           } else {
             expect(response.body).toEqual({
+              branch_id: expect.anything(),
               branch_members: expect.anything(),
               watershed_details: {
                 ...watershed_details,

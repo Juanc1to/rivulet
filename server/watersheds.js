@@ -226,8 +226,8 @@ function summary_Q(db, user_id, watershed_id) {
     .pluck().get({ branch_id });
 
   return Map({ watershed_details: watershed_rows.get(0),
-               branch_members, nr_watershed_participants, nr_messages,
-               messages_page, progression });
+               branch_id, branch_members, nr_watershed_participants,
+               nr_messages, messages_page, progression });
 }
 
 function summary(db, user_id, watershed_id) {

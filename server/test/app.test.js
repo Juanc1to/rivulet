@@ -1,5 +1,5 @@
 const request = require('supertest');
-const app = require('../app');
+const { app } = require('../app');
 
 describe('Express application', function () {
   it('has a basic running configuration', function (done) {
@@ -11,7 +11,7 @@ describe('Express application', function () {
           done(error);
         } else {
           expect(response.text).toEqual(
-            expect.stringContaining('Hello World'));
+            expect.stringContaining('Welcome to Rivulet'));
           done();
         }
       });

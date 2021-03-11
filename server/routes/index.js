@@ -7,7 +7,7 @@ const router = express.Router();
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
-  let params = Map(req.session);
+  let params = req.session.i7e;
   const watershed_list = watersheds.browse(req.app.get('db'));
   if (watershed_list.size > 0) {
     params = params.setIn(['watersheds?', 'watersheds'], watershed_list);
