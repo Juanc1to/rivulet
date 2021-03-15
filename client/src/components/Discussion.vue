@@ -99,29 +99,6 @@ const { fromJS } = require('immutable');
 
 const { HOST } = require('../constants');
 
-function fetch_reactions(component, after_message_refresh = true) {
-  request
-    .get(`${HOST}${component.watershed_ref}/reactions`)
-    .withCredentials()
-    .accept('json')
-    .end(function (error, response) {
-      if (error === null || error === undefined) {
-        component.reactions_by_message = response.body.reduce(
-          function (accumulator, current) {
-            if (accumulator[current.message_id] === undefined) {
-              accumulator[current.message_id] = [];
-            }
-            accumulator[current.message_id].push(current);
-            return accumulator;
-          }, {});
-        if (after_message_refresh) {
-          component.$nextTick(function () {
-            document.getElementById('last_message').scrollIntoView();
-          })
-        }
-      }
-    });
-}
 
 module.exports = {
   name: 'Discussion',
@@ -182,6 +159,7 @@ module.exports = {
             // messages list with some different styling to indicate the
             // message is sending, like Discord does.
             component.refresh_messages();
+            document.getElementById('new_message').focus();
           }
         });
     },
@@ -197,7 +175,43 @@ module.exports = {
             component.new_message = '';
             component.submitting_proposal = false;
             component.proposal_type = undefined;
-            fetch_reactions(component);
+            component.fetch_reactions(true);
+          }
+        });
+    },
+    fetch_reactions(after_message_refresh = true) {
+      const component = this;
+      request
+        .get(`${HOST}${component.watershed_ref}/reactions`)
+        .withCredentials()
+        .accept('json')
+        .end(function (error, response) {
+          if (error === null || error === undefined) {
+            component.reactions_by_message = response.body.reduce(
+              function (accumulator, current) {
+                if (accumulator[current.message_id] === undefined) {
+                  accumulator[current.message_id] = [];
+                }
+                accumulator[current.message_id].push(current);
+                return accumulator;
+              }, {});
+            if (after_message_refresh) {
+              component.$nextTick(function () {
+                document.getElementById('last_message').scrollIntoView();
+              })
+            }
+          }
+        });
+    },
+    fetch_members() {
+      const component = this;
+      request
+        .get(`${HOST}${component.watershed_ref}/members`)
+        .withCredentials()
+        .accept('json')
+        .end(function (error, response) {
+          if (error === null || error === undefined) {
+            component.load_branch({ branch_members: response.body });
           }
         });
     },
@@ -215,13 +229,13 @@ module.exports = {
             // May want to "conditionally" append the new message to the
             // messages list with some different styling to indicate the
             // message is sending, like Discord does.
-            fetch_reactions(component, false);
+            component.fetch_reactions(false);
           }
         });
     },
-    load_branch(response) {
-      console.log('watching:', response);
-      if (response === undefined) {
+    load_branch(details) {
+      console.log('watching:', details);
+      if (details === undefined) {
         this.branch_members_L = undefined;
         this.branch_members = undefined;
         this.messages_page = undefined;
@@ -230,18 +244,29 @@ module.exports = {
         this.watershed_name = undefined;
         return;
       }
-      this.branch_members_L = fromJS(
-        response.body.branch_members);
-      this.branch_members = response.body.branch_members.reduce(
-        function (dict, member_details) {
-          dict[member_details.user_id] = member_details;
-          return dict;
-        }, {});
-      this.messages_page = response.body.messages_page;
-      this.nr_messages = response.body.nr_messages;
-      this.progression = response.body.progression;
-      this.watershed_name = response.body.watershed_details.name;
-      fetch_reactions(this);
+      const { branch_members, messages_page, nr_messages, progression,
+              watershed_details } = details;
+      if (branch_members !== undefined) {
+        this.branch_members_L = fromJS(branch_members);
+        this.branch_members = branch_members.reduce(
+          function (dict, member_details) {
+            dict[member_details.user_id] = member_details;
+            return dict;
+          }, {});
+      }
+      if (progression !== undefined) {
+        this.progression = progression;
+      }
+      if (watershed_details !== undefined) {
+        this.watershed_name = watershed_details.name;
+      }
+      if (nr_messages !== undefined) {
+        this.nr_messages = nr_messages;
+      }
+      if (messages_page !== undefined) {
+        this.messages_page = messages_page;
+        this.fetch_reactions();
+      }
     },
     change_participation(action) {
       const component = this;
@@ -259,7 +284,7 @@ module.exports = {
                 name: '',
               });
             } else if (action === 'different branch') {
-              component.load_branch(response);
+              component.load_branch(response.body);
             }
           }
         });
@@ -285,7 +310,7 @@ module.exports = {
           .accept('json')
           .end(function (error, response) {
             if (error === null || error === undefined) {
-              component.load_branch(response);
+              component.load_branch(response.body);
             }
           });
 
@@ -299,8 +324,23 @@ module.exports = {
         console.log('socket handler', next_socket, previous_socket);
         const component = this;
         if (next_socket !== undefined) {
-          next_socket.on('new message', function (message) {
+          next_socket.on('new message', function () {
             component.refresh_messages();
+          })
+          .on('new reaction', function () {
+            component.fetch_reactions();
+          })
+          .on('member joined', function () {
+            component.fetch_members();
+          })
+          .on('member returned', function () {
+            component.fetch_members();
+          })
+          .on('member left', function () {
+            component.fetch_members();
+          })
+          .on('member details updated', function () {
+            component.fetch_members();
           });
         }
       },

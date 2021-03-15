@@ -17,10 +17,18 @@ router.get('/', function (req, res) {
 });
 
 router.post('/', function (req, res) {
+  const user_id = req.session.i7e.get('user_id');
+  const branch_id = req.session.i7e.getIn(['last_watershed', 'branch_id']);
   users.update(req.app.get('db'), {
-    id: req.session.i7e.get('user_id'),
+    id: user_id,
     ...req.body
   });
+  if (req.app.get('io') !== undefined && branch_id !== undefined) {
+    req.app.get('io').to(branch_id).emit('member details updated', {
+      id: user_id,
+      name: req.body.name
+    });
+  }
   res.sendStatus(200);
 });
 
