@@ -214,7 +214,7 @@ describe('A user', function () {
       .toContain('from last');
   }));
 
-  it('can add a reaction to a message', db.transaction(function () {
+  it('can add and delete reactions to a message', db.transaction(function () {
     const watershed_id = watersheds.watershed(db);
     const user_id = users.anonymous(db).user_id;
     const branch_id = watersheds.join(db, user_id, watershed_id);
@@ -222,9 +222,13 @@ describe('A user', function () {
       author_id: user_id, content: 'test message', watershed_id });
     const reaction_id = watersheds.reaction(db, {
       user_id, intent: "+1", message_id });
-    const reactions = watersheds.reactions(db, message_id);
+    let reactions = watersheds.reactions(db, message_id);
     expect(reactions.size).toBe(1);
     expect(reactions.get(0).get('intent')).toBe('+1');
+    const result = watersheds.delete_reaction(db, {
+      user_id, intent: "+1", message_id });
+    reactions = watersheds.reactions(db, message_id);
+    expect(reactions.size).toBe(0);
   }));
 
   it('cannot add a reaction to a message outside of their branch',

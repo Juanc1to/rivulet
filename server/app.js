@@ -22,7 +22,9 @@ const app = express();
 
 // Set up the view engine:
 app.set('views', path.join(__dirname, '../client/templates'));
-app.set('view engine', 'hjs');
+app.engine('html', require('hjs').__express);
+app.set('view engine', 'html');
+
 // For some reason, the method for including partials on every page described
 // in the hjs documentation didn't work, but the following middleware function,
 // which just adds a partials mapping object to the `locals` object, does work.
@@ -109,6 +111,9 @@ app.use(load_socket_F());
 app.use('/api', watershedsApiRouter);
 app.use('/account', accountRouter);
 app.use('/', indexRouter);
+app.get('/client/', function (req, res) {
+  res.render(path.join(__dirname, '../client/dist/index.html'));
+});
 // This static route serves the client files, which is a Vue single-page app
 // (SPA) for sending messages and navigating watersheds:
 app.use('/client', express.static(path.join(__dirname, '../client/dist/')));
