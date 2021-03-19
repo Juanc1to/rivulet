@@ -50,11 +50,21 @@
           <span class="date">{{ message.submitted.replace('T', ' ') }}</span>
         </div>
         <div class="content">{{ message.content }}</div>
-        <div v-if="reactions_by_message !== undefined
-                   && reactions_by_message[message.id]">
-          <ui-button icon="plus_one" title="@@display names here@@"
+        <!-- TODO: In the future we might want to support more types of
+        reactions (besides just '+1' reactions), at which point we might
+        benefit from breaking their UI into a separate component. -->
+        <!--Reactions v-if="reactions_by_message !== undefined"
+                   :reaction_list="reactions_by_message[message.id] -->
+        <div v-if="reaction_info !== undefined
+                   && reaction_info.hasIn([message.id, '+1'])">
+          <ui-button icon="plus_one" @click="react(message.id, '+1', 'remove')"
+              :title="reaction_info.getIn([message.id, '+1', 'members'])
+                .map(function (user_id) {
+                  return branch_members[user_id].name;
+                }).join(', ')"
               class="reactions"
-            >: {{ reactions_by_message[message.id].length }}</ui-button>
+            >: {{ reaction_info.getIn(
+                    [message.id, '+1', 'members']).size }}</ui-button>
         </div>
       </div>
     </div>
@@ -65,7 +75,7 @@
       <tr><td width="65%">
         <ui-textfield outlined input-type="textarea" v-model="new_message"
           rows="3"
-          id="new_message" />
+          id="new_message" :attrs="{ id: 'new_message_input' }" />
       </td>
       <td>
         <ui-button icon="send" raised @click="send">Send</ui-button>
@@ -95,7 +105,7 @@
 
 <script>
 const request = require('superagent');
-const { fromJS } = require('immutable');
+const { fromJS, Map, List, Set } = require('immutable');
 
 const { HOST } = require('../constants');
 
@@ -120,7 +130,19 @@ module.exports = {
       messages_page: undefined,
       nr_messages: undefined,
       progression: undefined,
-      reactions_by_message: undefined,
+      /* `reaction_info` is a data structure holding reaction information,
+       * compiled by the client, based on reaction data obtained from the
+       * server.  It is an Immutable.js structure of the following form:
+       *
+       *  - a Map from message ids to:
+       *    - a Map from reaction intents (currently only '+1' is supported)
+       *      to:
+       *      - a Map having two keys:
+       *        - 'members': a Set of ids of members who have matching
+       *          reactions
+       *        - 'reactions': a List of all matching reactions
+       */
+      reaction_info: undefined,
 
       display_message_options: false,
 
@@ -159,7 +181,7 @@ module.exports = {
             // messages list with some different styling to indicate the
             // message is sending, like Discord does.
             component.refresh_messages();
-            document.getElementById('new_message').focus();
+            document.getElementById('new_message_input').focus();
           }
         });
     },
@@ -187,14 +209,21 @@ module.exports = {
         .accept('json')
         .end(function (error, response) {
           if (error === null || error === undefined) {
-            component.reactions_by_message = response.body.reduce(
+            component.reaction_info = response.body.reduce(
               function (accumulator, current) {
-                if (accumulator[current.message_id] === undefined) {
-                  accumulator[current.message_id] = [];
-                }
-                accumulator[current.message_id].push(current);
-                return accumulator;
-              }, {});
+                const keyPath = List([current.message_id, current.intent]);
+                return accumulator.updateIn(keyPath, Map(),
+                  function (keyPath_map) {
+                    keyPath_map = keyPath_map.update('reactions', List(),
+                      function (reactions) {
+                        return reactions.push(current);
+                      });
+                    return keyPath_map.update('members', Set(),
+                      function (members) {
+                        return members.add(current.user_id);
+                      });
+                  });
+              }, Map());
             if (after_message_refresh) {
               component.$nextTick(function () {
                 document.getElementById('last_message').scrollIntoView();
@@ -215,15 +244,21 @@ module.exports = {
           }
         });
     },
-    react(message_id, intent) {
+    react(message_id, intent, action = 'add') {
       const component = this;
+      let request_body = Map();
+      if (action === 'add' || action === undefined) {
+        request_body = request_body.set('add_reaction', intent);
+      } else if (action === 'remove') {
+        request_body = request_body.set('remove_reaction', intent);
+      }
 
       request
         .post(`${HOST}${component.watershed_ref}/messages/${
           message_id}/reactions`)
         .withCredentials()
         .accept('json')
-        .send({ intent })
+        .send(request_body.toJS())
         .end(function (error, response) {
           if (error === null || error === undefined) {
             // May want to "conditionally" append the new message to the
@@ -267,6 +302,7 @@ module.exports = {
         this.messages_page = messages_page;
         this.fetch_reactions();
       }
+      document.getElementById('new_message_input').focus();
     },
     change_participation(action) {
       const component = this;
@@ -327,7 +363,10 @@ module.exports = {
           next_socket.on('new message', function () {
             component.refresh_messages();
           })
-          .on('new reaction', function () {
+          .on('reaction added', function () {
+            component.fetch_reactions();
+          })
+          .on('reaction removed', function () {
             component.fetch_reactions();
           })
           .on('member joined', function () {

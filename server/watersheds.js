@@ -347,6 +347,19 @@ function reaction_Q(db, details) {
   return new_reaction_info.lastInsertRowid;
 }
 
+function remove_reaction(db, details) {
+  const { user_id, intent, message_id } = details;
+  if (user_id === undefined || intent === undefined
+      || message_id === undefined) {
+    throw Error('Missing key reaction details');
+  }
+
+  const result = db.prepare(`
+    delete from reactions where user_id = $user_id and intent = $intent
+      and message_id = $message_id`).run(details);
+  return result.changes;
+}
+
 function reaction(db, details) {
   return reaction_Q(db, details);
   //return db.transaction(reaction_Q)(db, details);
@@ -354,5 +367,5 @@ function reaction(db, details) {
 
 module.exports = Object.freeze({
   watershed, browse, join, leave, summary, message, reactions,
-  branch_reactions, reaction
+  branch_reactions, reaction, remove_reaction
 });

@@ -159,14 +159,27 @@ router.post('/watersheds/:id/messages/:message_id/reactions',
             function (req, res) {
   const socket = res.locals.socket;
   const branch_id = req.session.i7e.getIn(['last_watershed', 'branch_id']);
-  const details = {
-    user_id: req.session.i7e.get('user_id'),
-    message_id: req.params.message_id,
-    ...req.body
-  };
-  const reaction_id = watersheds.reaction(req.app.get('db'), details);
-  if (socket !== undefined && branch_id !== undefined) {
-    socket.to(branch_id).emit('new reaction', details);
+  if (req.body.add_reaction !== undefined) {
+    const details = {
+      user_id: req.session.i7e.get('user_id'),
+      message_id: req.params.message_id,
+      intent: req.body.add_reaction
+    }
+    const reaction_id = watersheds.reaction(req.app.get('db'), details);
+    if (socket !== undefined && branch_id !== undefined) {
+      socket.to(branch_id).emit('reaction added', details);
+    }
+  }
+  if (req.body.remove_reaction !== undefined) {
+    const details = {
+      user_id: req.session.i7e.get('user_id'),
+      message_id: req.params.message_id,
+      intent: req.body.remove_reaction
+    }
+    const result = watersheds.remove_reaction(req.app.get('db'), details);
+    if (socket !== undefined && branch_id !== undefined) {
+      socket.to(branch_id).emit('reaction removed', details);
+    }
   }
   res.sendStatus(201);
 });

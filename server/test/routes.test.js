@@ -370,7 +370,7 @@ describe('At /api/watersheds, a user', function () {
     });
 
     it('can react to messages', function (done) {
-      const reaction = { intent: "+1" };
+      const reaction = { add_reaction: "+1" };
       function react(reactions_url) {
         agent
           .post(reactions_url)
@@ -407,7 +407,7 @@ describe('At /api/watersheds, a user', function () {
           });
       }
 
-      const reaction = { intent: "+1" };
+      const reaction = { add_reaction: "+1" };
       function react() {
         agent
           .post(reactions_url)
@@ -554,7 +554,7 @@ describe('Together in a branch, a set of users', function () {
                                : second_proposal_reactions_url);
         user_agent_list.getIn([user_nr, 'agent'])
           .post(reactions_url)
-          .send({ intent: "+1" })
+          .send({ add_reaction: "+1" })
           .end(function (error, response) {
             if (error) {
               done(error);
