@@ -2,24 +2,20 @@
   "name": "rivulet",
   "version": "0.1.0-dev",
   "description": "Grow ideas rooted in conversation.",
-  "main": "server/init.js",
+  "author": "John L. Clark <jlc6@po.cwru.edu>",
   "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint",
     "test": "jest"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Juanc1to/rivulet.git"
-  },
-  "author": "John L. Clark <jlc6@po.cwru.edu>",
-  "license": "GPL-3.0-or-later",
-  "bugs": {
-    "url": "https://github.com/Juanc1to/rivulet/issues"
-  },
-  "homepage": "https://github.com/Juanc1to/rivulet#readme",
+  "main": "server/init.js",
   "dependencies": {
+    "balm-ui": "^9.17.0",
     "config": "^3.3.3",
     "connect-sqlite3": "^0.9.11",
     "cookie-parser": "^1.4.5",
+    "core-js": "^3.6.5",
     "debug": "^4.3.1",
     "express": "^4.17.1",
     "express-session": "^1.17.1",
@@ -33,10 +29,33 @@
     "vue": "^3.0.5"
   },
   "devDependencies": {
+    "@vue/cli": "^4.5.11",
+    "@vue/cli-plugin-babel": "~4.5.0",
+    "@vue/cli-plugin-eslint": "~4.5.0",
+    "@vue/cli-service": "~4.5.11",
+    "@vue/compiler-sfc": "^3.0.7",
+    "@vue/eslint-config-standard": "^5.1.2",
+    "babel-eslint": "^10.1.0",
     "cors": "^2.8.5",
-    "supertest": "^6.1.3"
+    "eslint": "^6.7.2",
+    "eslint-plugin-import": "^2.20.2",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-standard": "^4.0.0",
+    "eslint-plugin-vue": "^7.0.0-0",
+    "supertest": "^6.1.3",
+    "vue-template-compiler": "^2.6.11"
   },
+  "bugs": {
+    "url": "https://github.com/Juanc1to/rivulet/issues"
+  },
+  "homepage": "https://github.com/Juanc1to/rivulet#readme",
+  "license": "GPL-3.0-or-later",
   "optionalDependencies": {
     "better-sqlite3": "^7.1.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Juanc1to/rivulet.git"
   }
 }

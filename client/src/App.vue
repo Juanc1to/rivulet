@@ -144,6 +144,10 @@ module.exports = {
 </script>
 
 <style>
+/* See <https://webpack.js.org/loaders/css-loader/#import> for how this works
+ * with Webpack: */
+@import '~balm-ui-css';
+
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
