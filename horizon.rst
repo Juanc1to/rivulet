@@ -1,18 +1,15 @@
 Planning future versions of Rivulet
 ===================================
 
-I don't even have a view written yet, and I'm already thinking about how to lay out future work on this project.
-
 .. list-table::
   :header-rows: 1
 
   * - Feature
     - Priority
     - Version
-  * - Initial Socket.io integration
-    - High: can demonstrate without it, but not for long; also, I think it'll
-      be very fun to implement and play with
-    - 0.2
+  * - Documentation
+    - High
+    - 0.3
   * - Emailing anonymous token reminders
     - High: can demonstrate without it, but not for long
     - 0.2
