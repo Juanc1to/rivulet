@@ -90,7 +90,7 @@ router.post('/watersheds/:id', function (req, res) {
     }
   }
   if (req.body.action === 'join' || req.body.action === 'different branch') {
-    let summary = watersheds.summary(req.app.get('db'), user_id,
+    let summary = watersheds.branch_info(req.app.get('db'), user_id,
       req.params.id).set('messages_api_ref', `${req.originalUrl}/messages`);
 
     // TODO: distinguish between a "re-join" (maybe just call it a "return")
@@ -140,7 +140,7 @@ router.post('/watersheds/:id/messages', function (req, res) {
 });
 
 router.get('/watersheds/:id/messages', function (req, res) {
-  let messages_page = watersheds.summary(req.app.get('db'),
+  let messages_page = watersheds.branch_info(req.app.get('db'),
     req.session.i7e.get('user_id'), req.params.id).get('messages_page');
   messages_page = messages_page.map(function (entry) {
     return entry.set('reactions_api_ref',
@@ -150,7 +150,7 @@ router.get('/watersheds/:id/messages', function (req, res) {
 });
 
 router.get('/watersheds/:id/members', function (req, res) {
-  const branch_members = watersheds.summary(req.app.get('db'),
+  const branch_members = watersheds.branch_info(req.app.get('db'),
     req.session.i7e.get('user_id'), req.params.id).get('branch_members');
   res.send(branch_members.toJS());
 });

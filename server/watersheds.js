@@ -50,6 +50,47 @@ function browse(db, options = {}) {
   return db.transaction(browse_Q)(db, options);
 }
 
+function watershed_count_Q(db, watershed_id) {
+  return db.prepare(`
+    select count(*) from participation inner join branches on branch_id = id
+      and end_status is null and head
+      where watershed_id = $watershed_id`)
+    .pluck().get({ watershed_id });
+}
+
+function watershed_details_Q(db, watershed_id) {
+  const watershed_rows = fromJS(db.prepare(`
+    select * from watersheds where id = $watershed_id`)
+    .all({ watershed_id }));
+  if (watershed_rows.size !== 1) {
+    throw Error('Exactly 1 watershed not found');
+  }
+  return watershed_rows.get(0);
+}
+
+function summary_Q(db, watershed_id) {
+  const nr_participants = watershed_count_Q(db, watershed_id);
+  const details = watershed_details_Q(db, watershed_id);
+  const progression_level = db.prepare(`
+    select max(progression) from participation inner join branches
+      on branch_id = branches.id
+    where watershed_id = $watershed_id`).pluck().get({ watershed_id });
+  const reports = db.prepare(`
+    select content, messages.submitted, progression from messages
+      inner join branches on branches.id = branch_id
+      inner join reactions on messages.id = message_id
+    where watershed_id = $watershed_id and intent = '+1'
+      and proposal_type = 'report'
+    group by messages.id
+      having count(distinct reactions.user_id) = $branch_size
+  `).all({ watershed_id, branch_size: details.get('branch_size') });
+  return fromJS({ nr_participants, details, progression_level, reports });
+}
+
+function summary(db, watershed_id) {
+  return db.transaction(summary_Q)(db, watershed_id);
+}
+
 function join_Q(db, user_id, watershed_id) {
   user_id = Number.parseInt(user_id);
   watershed_id = Number.parseInt(watershed_id);
@@ -173,6 +214,13 @@ function join(db, user_id, watershed_id) {
 
 function leave_Q(db, user_id, watershed_id) {
   const original_branch_id = join_Q(db, user_id, watershed_id);
+  const delete_reactions = db.prepare(`
+    delete from reactions where user_id = $user_id
+      and message_id in (select message_id from messages
+        where branch_id = $original_branch_id)`).run({
+    user_id,
+    original_branch_id
+  });
   const update_info = db.prepare(`
     update participation set end_status = 'abandoned'
       where user_id = $user_id and branch_id = $original_branch_id
@@ -184,14 +232,6 @@ function leave(db, user_id, watershed_id) {
   return db.transaction(leave_Q)(db, user_id, watershed_id);
 }
 
-function watershed_count_Q(db, watershed_id) {
-  return db.prepare(`
-    select count(*) from participation inner join branches on branch_id = id
-      and end_status is null and head
-      where watershed_id = $watershed_id`)
-    .pluck().get({ watershed_id });
-}
-
 function messages_page_Q(db, branch_id) {
   // I need to figure out how to coordinate paging between the controller and
   // the model, at some point...
@@ -200,13 +240,8 @@ function messages_page_Q(db, branch_id) {
     .all({ branch_id }));
 }
 
-function summary_Q(db, user_id, watershed_id) {
-  const watershed_rows = fromJS(db.prepare(`
-    select * from watersheds where id = $watershed_id`)
-    .all({ watershed_id }));
-  if (watershed_rows.size !== 1) {
-    throw Error('Exactly 1 watershed not found');
-  }
+function branch_info_Q(db, user_id, watershed_id) {
+  const watershed_details = watershed_details_Q(db, watershed_id);
   // TODO: This "join" should only be a lookup; perhaps I want to partition
   // that function so I can do the two things separately?
   const branch_id = join(db, user_id, watershed_id);
@@ -225,13 +260,13 @@ function summary_Q(db, user_id, watershed_id) {
     select progression from branches where id = $branch_id`)
     .pluck().get({ branch_id });
 
-  return Map({ watershed_details: watershed_rows.get(0),
-               branch_id, branch_members, nr_watershed_participants,
-               nr_messages, messages_page, progression });
+  return Map({ watershed_details, branch_id, branch_members,
+               nr_watershed_participants, nr_messages, messages_page,
+               progression });
 }
 
-function summary(db, user_id, watershed_id) {
-  return db.transaction(summary_Q)(db, user_id, watershed_id);
+function branch_info(db, user_id, watershed_id) {
+  return db.transaction(branch_info_Q)(db, user_id, watershed_id);
 }
 
 function message_Q(db, details) {
@@ -316,6 +351,8 @@ function reaction_Q(db, details) {
   if (message_row.proposal_type === 'representative') {
     const branch_id = participation[0].branch_id;
 
+    // TODO: this needs to take into account whether the user is still active
+    // in the branch:
     const nr_affirmations = db.prepare(`
       select count(distinct reactions.user_id) as nr_affirmations
       from messages inner join reactions
@@ -366,6 +403,6 @@ function reaction(db, details) {
 }
 
 module.exports = Object.freeze({
-  watershed, browse, join, leave, summary, message, reactions,
+  watershed, browse, summary, join, leave, branch_info, message, reactions,
   branch_reactions, reaction, remove_reaction
 });

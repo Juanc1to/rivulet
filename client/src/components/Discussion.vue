@@ -154,8 +154,8 @@ module.exports = {
           value: 'representative'
         },
         {
-          label: 'Summary',
-          value: 'summary'
+          label: 'Report',
+          value: 'report'
         }
       ],
       proposal_input: ''

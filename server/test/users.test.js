@@ -103,7 +103,7 @@ describe('A user', function () {
     const watershed_id = watersheds.watershed(db);
     const branch_id = watersheds.join(db, user_id, watershed_id);
     const branch2_id = watersheds.join(db, user2_id, watershed_id);
-    const summary = watersheds.summary(db, user_id, watershed_id);
+    const summary = watersheds.branch_info(db, user_id, watershed_id);
 
     expect(summary.get('branch_members').size).toBe(2);
     expect(summary.get('nr_watershed_participants')).toBe(2);
@@ -199,10 +199,10 @@ describe('A user', function () {
       content: "from last",
       watershed_id,
     });
-    const first_summary = watersheds.summary(db, new_users.first(),
-                                             watershed_id);
-    const last_summary = watersheds.summary(db, new_users.last(),
-                                            watershed_id);
+    const first_summary = watersheds.branch_info(db, new_users.first(),
+                                                 watershed_id);
+    const last_summary = watersheds.branch_info(db, new_users.last(),
+                                                watershed_id);
     expect(first_summary.get('nr_messages')).toBe(1);
     expect(last_summary.get('nr_messages')).toBe(1);
     function peek_content(details) {
@@ -225,7 +225,7 @@ describe('A user', function () {
     let reactions = watersheds.reactions(db, message_id);
     expect(reactions.size).toBe(1);
     expect(reactions.get(0).get('intent')).toBe('+1');
-    const result = watersheds.delete_reaction(db, {
+    const result = watersheds.remove_reaction(db, {
       user_id, intent: "+1", message_id });
     reactions = watersheds.reactions(db, message_id);
     expect(reactions.size).toBe(0);
@@ -251,5 +251,39 @@ describe('A user', function () {
       watersheds.reaction(db,
         { user_id: new_users.last(), intent: "+1", message_id })
     }).toThrow('different branch')
+  }));
+
+  it('can collaborate to make a branch report public',
+     db.transaction(function () {
+    const branch_size = 3;
+    const watershed_id = watersheds.watershed(db, { branch_size });
+    const user_spots = Repeat(undefined, branch_size);
+    const new_users = user_spots.map(function userjoin() {
+      const user_id = users.anonymous(db).user_id;
+      const branch_id = watersheds.join(db, user_id, watershed_id);
+      return user_id;
+    }).toList();
+
+    watersheds.message(db, {
+      author_id: new_users.first(),
+      content: 'non-report message',
+      watershed_id
+    });
+    const message_id = watersheds.message(db, {
+      author_id: new_users.first(),
+      content: 'test report',
+      proposal_type: 'report',
+      watershed_id,
+    });
+    new_users.forEach(function vote_up(user_id) {
+      watersheds.reaction(db, { user_id, intent: '+1', message_id });
+    });
+
+    const summary = watersheds.summary(db, watershed_id);
+    expect(summary.getIn(['reports', 0]).toJS()).toEqual({
+      content: 'test report',
+      progression: 0,
+      submitted: expect.anything()
+    });
   }));
 });
