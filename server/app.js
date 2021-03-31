@@ -15,7 +15,8 @@ const { configure: configureDatabase, dbstore } = require('./db');
 const time = require('./util/time');
 
 const indexRouter = require('./routes/index');
-const watershedsApiRouter = require('./routes/watersheds');
+const apiRouter = require('./routes/api');
+const watershedsRouter = require('./routes/watersheds');
 const accountRouter = require('./routes/auth');
 
 const app = express();
@@ -37,6 +38,7 @@ app.use(function (req, res, next) {
     body_title: 'body_title',
     identify: 'identify',
     identified: 'identified',
+    watershed_details: 'watershed_details',
     watershed_summary: 'watershed_summary',
     introduction: 'introduction'
   };
@@ -108,8 +110,9 @@ function load_socket_F(options) {
 app.use(load_socket_F());
 
 // Set up our routes:
-app.use('/api', watershedsApiRouter);
+app.use('/api', apiRouter);
 app.use('/account', accountRouter);
+app.use('/watersheds', watershedsRouter);
 app.use('/', indexRouter);
 app.get('/client/', function (req, res) {
   res.render(path.join(__dirname, '../client/dist/index.html'));

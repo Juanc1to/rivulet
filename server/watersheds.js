@@ -83,6 +83,7 @@ function summary_Q(db, watershed_id) {
       and proposal_type = 'report'
     group by messages.id
       having count(distinct reactions.user_id) = $branch_size
+    order by messages.submitted desc
   `).all({ watershed_id, branch_size: details.get('branch_size') });
   return fromJS({ nr_participants, details, progression_level, reports });
 }

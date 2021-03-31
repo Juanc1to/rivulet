@@ -40,8 +40,8 @@ Everything here is subject to discussion and modification.  Currently this docum
 Installation and deployment
 ---------------------------
 
-#. Check out the project repository into a working directory of your choice,
-   then change into that working directory.
+#. Check out/clone the project repository into a working directory of your
+   choice, then change into that working directory.
 
 #. Use npm to install the project dependencies: `npm i`.
 
@@ -68,8 +68,11 @@ branch
 watershed
   The set of branches associated with a particular topic.
 
-Software ecosystem under consideration
----------------------------------------
+Software ecosystem
+------------------
+
+`Node.js <https://nodejs.org/>`_
+  JavaScript (server) runtime
 
 `Express <http://expressjs.com/>`_
   Web framework
@@ -94,6 +97,9 @@ Software ecosystem under consideration
 
 Supporting libraries
   - `Immutable.js <https://immutable-js.github.io/immutable-js/>`_
+
+  - HTTP requests with `superagent
+    <https://github.com/visionmedia/superagent>`_
 
   - Testing with `Jest <https://jestjs.io/>`_
 

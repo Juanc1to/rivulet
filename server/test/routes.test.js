@@ -603,6 +603,6 @@ describe('Together in a branch, a set of users', function () {
     proposal_first_branch();
   });
 
-  it.skip('can set a message as the branch summary', function (done) {
+  it.skip('can set a message as a branch report', function (done) {
   });
 });
