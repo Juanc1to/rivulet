@@ -120,6 +120,9 @@ app.get('/client/', function (req, res) {
 // This static route serves the client files, which is a Vue single-page app
 // (SPA) for sending messages and navigating watersheds:
 app.use('/client', express.static(path.join(__dirname, '../client/dist/')));
+app.use('/documentation',
+        express.static(path.join(__dirname,
+                                 '../client/public/documentation/')));
 
 /**
  * Get port from environment and store in Express.
