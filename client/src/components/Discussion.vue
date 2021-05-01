@@ -74,6 +74,8 @@
       <table style="width: 100%">
       <tr><td width="65%">
         <ui-textfield outlined input-type="textarea" v-model="new_message"
+          @keyup.enter.exact.prevent="send"
+          @keydown.enter.exact.prevent
           rows="3"
           id="new_message" :attrs="{ id: 'new_message_input' }" />
       </td>
@@ -430,6 +432,7 @@ div.message_info span.date {
 
 div.message div.content {
   margin-top: 0.25em;
+  white-space: pre-wrap;
 }
 
 #new_message {
