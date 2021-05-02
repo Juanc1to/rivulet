@@ -121,6 +121,48 @@ router.post('/watersheds/:id', function (req, res) {
   res.sendStatus(422);
 });
 
+/*
+ * Within the context of a user session, GETing a watershed's URL requests
+ * that a user join that watershed and redirects to an interface for
+ * interacting with that watershed.
+ */
+router.get('/watersheds/:id', function (req, res) {
+  console.log('session.i7e:', req.session.i7e.toJS(), req.sessionID);
+  const user_id = req.session.i7e.get('user_id');
+  const socket = res.locals.socket;
+  const last_branch_id = req.session.i7e.getIn(
+    ['last_watershed', 'branch_id']);
+
+  let summary = watersheds.branch_info(req.app.get('db'), user_id,
+    req.params.id).set('messages_api_ref', `${req.originalUrl}/messages`);
+
+  // TODO: distinguish between a "re-join" (maybe just call it a "return")
+  // and a new join of a watershed.  We only really want to announce joining
+  // when we're newly joining a watershed.
+  if (socket !== undefined) {
+    const next_branch_id = summary.get('branch_id');
+    socket.join(next_branch_id);
+    if (next_branch_id !== last_branch_id) {
+      socket.to(next_branch_id).emit('member joined', user_id);
+    } else {
+      socket.to(next_branch_id).emit('member returned', user_id);
+    }
+  }
+
+  /*summary = summary.filterNot(function (value, key) {
+    return key === 'id';
+  }).set('messages_api_ref', `${req.originalUrl}/messages`);*/
+
+  req.session.i7e = req.session.i7e.set('last_watershed', {
+    branch_id: summary.get('branch_id'),
+    api_ref: req.originalUrl,
+    name: summary.getIn(['watershed_details', 'name'])
+  });
+
+  return res.redirect(303, '/client'); // Would it be "better" to return a
+                                       // representation directly?
+});
+
 router.post('/watersheds/:id/messages', function (req, res) {
   const socket = res.locals.socket;
   const branch_id = req.session.i7e.getIn(['last_watershed', 'branch_id']);

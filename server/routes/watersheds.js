@@ -7,6 +7,7 @@ const router = express.Router();
 
 router.get('/:id', function (req, res) {
   const watershed_id = req.params.id;
+  const user_id = req.session.i7e.get('user_id');
   const summary = watersheds.summary(req.app.get('db'), watershed_id);
   let reports_by_level = Map();
   Range(0, summary.get('progression_level') + 1).reverse().forEach(
@@ -45,6 +46,11 @@ router.get('/:id', function (req, res) {
   });
   if (reports_by_level.size > 0) {
     params = params.setIn(['reports?', 'reports_by_level'], reports_by_level);
+  }
+  if (user_id !== undefined) {
+    // TODO: properly handle base URLs
+    params = params.setIn(['user_session?', 'join_url'],
+                          `/api/watersheds/${watershed_id}`);
   }
   res.render('watershed_summary', params.toJS());
 });

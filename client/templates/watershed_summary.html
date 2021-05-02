@@ -3,11 +3,15 @@
     <title>Watershed: {{ name }}</title>
 
     <style type="text/css">
-      div#details {
+      div#details, form#join {
         float: right;
         width: 35%;
         background-color: white;
         padding-left: 1em;
+      }
+
+      form#join {
+        margin-top: 1em;
       }
 
       div.description, div.content {
@@ -33,6 +37,13 @@
     </style>
   </head>
   <body>
+    {{# user_session? }}
+    <form method="get" action="{{ join_url }}" id="join">
+      <button type="submit" title="Join this watershed"
+        >Join the conversation!</button>
+    </form>
+    {{/ user_session? }}
+
     <h1>Watershed: {{ name }}</h1>
 
     <div id="details">
