@@ -183,6 +183,9 @@ module.exports = {
             // messages list with some different styling to indicate the
             // message is sending, like Discord does.
             component.refresh_messages();
+            component.new_message = '';
+            component.submitting_proposal = false;
+            component.proposal_type = undefined;
             document.getElementById('new_message_input').focus();
           }
         });
@@ -196,9 +199,6 @@ module.exports = {
         .end(function (error, response) {
           if (error === null || error === undefined) {
             component.messages_page = response.body;
-            component.new_message = '';
-            component.submitting_proposal = false;
-            component.proposal_type = undefined;
             component.fetch_reactions(true);
           }
         });
@@ -211,6 +211,7 @@ module.exports = {
         .accept('json')
         .end(function (error, response) {
           if (error === null || error === undefined) {
+            // TODO: there is some case in which response.body is null ...
             component.reaction_info = response.body.reduce(
               function (accumulator, current) {
                 const keyPath = List([current.message_id, current.intent]);
