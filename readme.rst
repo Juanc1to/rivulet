@@ -90,7 +90,8 @@ Software ecosystem
   focus on callback-style APIs when they are available.
 
 `Vue.js <https://vuejs.org/>`_
-  Web interface
+  Web interface, extended with `BalmUI <https://next-material.balmjs.com/>`_
+  `Material Design <https://material.io/>`_ components
 
 `Socket.io <https://socket.io/>`_
   Realtime stuff that you'd expect from a chat application
@@ -116,6 +117,9 @@ Supporting libraries
     and reading `"Stop using Knex.js"
     <https://medium.com/@gajus/bf410349856c>`_.  I'm currently focused on
     SQLite support; eventually I want to add support for PostgreSQL.
+
+  - Templating with `mustache <https://mustache.github.io/>`_ templates
+    mediated in Express by `hjs <https://github.com/nullfirm/hjs>`_
 
 Design ideas
 ------------
@@ -152,3 +156,20 @@ I imagine that Rivulet will also provide an option for identification and
 authentication.  This will at least be useful for watershed creators,
 administrators, and facilitators, and it could allow any user to build up a
 reputation and a history within a particular space.
+
+Feature ideas
+-------------
+
+  * Emailing anonymous token reminders: if you haven't recorded your anonymous token, but you have associated an email address with your account, Rivulet could email you your anonymous token.
+
+  * Notifications for new messages
+
+  * Multi-line text input for watershed descriptions
+
+  * Dynamic display of watersheds by level of activity
+
+  * Searching through available watersheds
+
+  * Better distinction between new and old messages in the chat client
+
+  * Smoother user session interaction
