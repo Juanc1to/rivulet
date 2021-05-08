@@ -160,16 +160,14 @@ reputation and a history within a particular space.
 Feature ideas
 -------------
 
-  * Emailing anonymous token reminders: if you haven't recorded your anonymous token, but you have associated an email address with your account, Rivulet could email you your anonymous token.
+* Notifications for new messages
 
-  * Notifications for new messages
+* Multi-line text input for watershed descriptions
 
-  * Multi-line text input for watershed descriptions
+* Dynamic display of watersheds by level of activity
 
-  * Dynamic display of watersheds by level of activity
+* Searching through available watersheds
 
-  * Searching through available watersheds
+* Better distinction between new and old messages in the chat client
 
-  * Better distinction between new and old messages in the chat client
-
-  * Smoother user session interaction
+* Smoother user session interaction
